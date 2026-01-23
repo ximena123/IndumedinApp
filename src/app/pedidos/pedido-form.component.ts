@@ -14,7 +14,7 @@ import { PedidosService } from './pedidos.service'
   selector: 'app-pedido-form',
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <h2>Nuevo Pedido</h2>
+    <h2>{{ pedidoId ? 'Editar Pedido' : 'Nuevo Pedido' }}</h2>
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="p-4 bg-white rounded shadow-lg" style="max-width:900px;margin:auto;">
       <div class="row align-items-end mb-3">
         <div class="col-md-8 position-relative">
@@ -78,34 +78,15 @@ import { PedidosService } from './pedidos.service'
   `
 })
 export class PedidoFormComponent implements OnInit {
-        ngAfterViewInit() {
-          // Actualizar saldo cada vez que cambie precio o abono
-          this.form.get('precio')?.valueChanges.subscribe(() => this.actualizarSaldo());
-          this.form.get('abono')?.valueChanges.subscribe(() => this.actualizarSaldo());
-          this.actualizarSaldo();
-        }
-
-        actualizarSaldo() {
-          const precio = Number(this.form.get('precio')?.value ?? 0);
-          const abono = Number(this.form.get('abono')?.value ?? 0);
-          this.form.get('saldo')?.setValue(precio - abono as any, { emitEvent: false });
-        }
-      cancelar() {
-        this.router.navigate(['/pedidos']);
-      }
-    buscadorActivo = false;
-
-    onBlurBuscador() {
-      // Esperar a que el click en la opción se registre antes de ocultar
-      setTimeout(() => this.buscadorActivo = false, 200);
-    }
+  pedidoId: string | null = null;
+  buscadorActivo = false;
   form = this.fb.group({
     descripcion: ['', Validators.required],
     fechaEntrega: ['', Validators.required],
     estado: ['pendiente', Validators.required],
-    precio: [null],
-    abono: [null],
-    saldo: [null as number | null],
+    precio: [undefined as number | null | undefined],
+    abono: [undefined as number | null | undefined],
+    saldo: [undefined as number | null | undefined],
     notas: ['']
   });
   clienteBusquedaControl = new FormControl('');
@@ -129,11 +110,9 @@ export class PedidoFormComponent implements OnInit {
       map(([clientes, filtro]) => {
         const f = (filtro || '').toLowerCase();
         if (!f) return clientes;
-        // Si el filtro es una sola palabra, buscar solo en nombreCompleto
         if (!f.includes(' ')) {
           return clientes.filter(c => c.nombreCompleto.toLowerCase().includes(f));
         }
-        // Si el filtro tiene espacio, buscar en nombreCompleto y apellidos
         return clientes.filter(c =>
           c.nombreCompleto.toLowerCase().includes(f) ||
           (c.apellidos?.toLowerCase().includes(f))
@@ -142,18 +121,77 @@ export class PedidoFormComponent implements OnInit {
     );
   }
 
- 
   ngOnInit() {
-    this.route.queryParams.subscribe(params => {
-      const id = params['id'];
+    // Si la ruta es /pedidos/editar/:id, obtener el id y cargar el pedido
+    this.route.paramMap.subscribe(params => {
+      const id = params.get('id');
       if (id) {
-        this.clientesService.getCliente(id).subscribe(cliente => {
-          if (cliente) {
-            this.seleccionarCliente(cliente);
+        this.pedidoId = id;
+        // Buscar el pedido y setear los valores en el formulario
+        this.pedidosService.getPedidos().subscribe(pedidos => {
+          const pedido = pedidos.find(p => p.id === id);
+          if (pedido) {
+            this.form.patchValue({
+              descripcion: pedido.descripcion,
+              fechaEntrega: this.formatFechaEntrega(pedido.fechaEntrega),
+              estado: pedido.estado,
+              precio: typeof pedido.precio === 'number' ? pedido.precio : undefined,
+              abono: typeof pedido.abono === 'number' ? pedido.abono : undefined,
+              saldo: typeof pedido.saldo === 'number' ? pedido.saldo : undefined,
+              notas: pedido.notas ?? ''
+            });
+            // Buscar el cliente y seleccionarlo
+            this.clientesService.getCliente(pedido.clienteId).subscribe(cliente => {
+              if (cliente) {
+                this.seleccionarCliente(cliente);
+              }
+            });
+          }
+        });
+      } else {
+        // Si viene por queryParams para nuevo pedido con cliente preseleccionado
+        this.route.queryParams.subscribe(params => {
+          const id = params['id'];
+          if (id) {
+            this.clientesService.getCliente(id).subscribe(cliente => {
+              if (cliente) {
+                this.seleccionarCliente(cliente);
+              }
+            });
           }
         });
       }
     });
+    // Actualizar saldo cada vez que cambie precio o abono
+    this.form.get('precio')?.valueChanges.subscribe(() => this.actualizarSaldo());
+    this.form.get('abono')?.valueChanges.subscribe(() => this.actualizarSaldo());
+    this.actualizarSaldo();
+  }
+
+  formatFechaEntrega(fecha: any): string {
+    if (!fecha) return '';
+    if (typeof fecha === 'string') return fecha;
+    if (fecha instanceof Date) {
+      const y = fecha.getFullYear();
+      const m = (fecha.getMonth() + 1).toString().padStart(2, '0');
+      const d = fecha.getDate().toString().padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return '';
+  }
+
+  actualizarSaldo() {
+    const precio = Number(this.form.get('precio')?.value ?? 0);
+    const abono = Number(this.form.get('abono')?.value ?? 0);
+    this.form.get('saldo')?.setValue(precio - abono as any, { emitEvent: false });
+  }
+
+  cancelar() {
+    this.router.navigate(['/pedidos']);
+  }
+
+  onBlurBuscador() {
+    setTimeout(() => this.buscadorActivo = false, 200);
   }
 
   seleccionarCliente(cliente: Cliente) {
@@ -168,20 +206,28 @@ export class PedidoFormComponent implements OnInit {
   onSubmit() {
     if (this.form.valid && this.clienteSeleccionado) {
       const formValue = this.form.value;
-      const pedido = {
+      const pedido: Partial<import('../models/pedido.model').Pedido> = {
         clienteId: this.clienteSeleccionado!.id,
-        medidaId: null,
+        // medidaId solo si existe
         descripcion: formValue.descripcion ?? '',
-        estado: formValue.estado ?? 'pendiente',
+        estado: formValue.estado as 'pendiente' | 'en_proceso' | 'terminado' | 'entregado' | undefined,
         precio: formValue.precio ?? undefined,
         abono: formValue.abono ?? undefined,
         saldo: formValue.saldo ?? undefined,
         notas: formValue.notas ?? '',
-        fechaEntrega: formValue.fechaEntrega ?? null
+        fechaEntrega: formValue.fechaEntrega ? new Date(formValue.fechaEntrega) : undefined
       };
-      this.pedidosService.addPedido(pedido).then(docRef => {
-        this.router.navigate(['/pedidos']);
-      });
+      if (this.pedidoId) {
+        // Editar pedido existente
+        this.pedidosService.updatePedido(this.pedidoId, pedido).then(() => {
+          this.router.navigate(['/pedidos']);
+        });
+      } else {
+        // Nuevo pedido
+        this.pedidosService.addPedido(pedido).then(docRef => {
+          this.router.navigate(['/pedidos']);
+        });
+      }
     }
   }
 }

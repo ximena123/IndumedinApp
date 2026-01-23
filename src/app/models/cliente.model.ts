@@ -6,6 +6,7 @@ export interface Cliente {
   profesion?: string;
   tallaCamisa?: string;
   tallaPantalon?: string;
+  tallaMandil?: string;
   especificaciones?: string;
   createdAt: Date;
 }

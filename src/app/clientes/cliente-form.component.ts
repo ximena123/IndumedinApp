@@ -35,6 +35,9 @@ import { ClientesService } from './clientes.service'
         <div class="col-md-6">
           <input formControlName="tallaPantalon" class="form-control" placeholder="Talla de pantalón">
         </div>
+        <div class="col-md-6">
+          <input formControlName="tallaMandil" class="form-control" placeholder="Talla de mandil">
+        </div>
         <div class="col-12">
           <textarea formControlName="especificaciones" class="form-control" placeholder="Especificaciones"></textarea>
         </div>
@@ -59,6 +62,7 @@ export class ClienteFormComponent implements OnInit {
     profesion: [''],
     tallaCamisa: [''],
     tallaPantalon: [''],
+    tallaMandil: [''],
     especificaciones: [''],
   });
   loading = false;
@@ -100,6 +104,7 @@ export class ClienteFormComponent implements OnInit {
         profesion: formValue.profesion ?? '',
         tallaCamisa: formValue.tallaCamisa ?? '',
         tallaPantalon: formValue.tallaPantalon ?? '',
+        tallaMandil: formValue.tallaMandil ?? '',
         especificaciones: formValue.especificaciones ?? ''
       };
       if (this.esEdicion && this.clienteId) {

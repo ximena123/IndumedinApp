@@ -43,6 +43,7 @@ import { PedidosService } from './pedidos.service'
                 <th class="text-center">Abono</th>
                 <th class="text-center">Saldo</th>
                 <th class="text-center">Acciones</th>
+                 <th class="text-center">Editar</th>
               </tr>
             </thead>
             <tbody>
@@ -55,7 +56,15 @@ import { PedidosService } from './pedidos.service'
                 <td>{{ pedido.abono }}</td>
                 <td>{{ pedido.saldo }}</td>
                 <td class="text-center">
-                  <button class="btn btn-warning btn-sm" (click)="verDetalle(pedido.id)">Ver mas</button>
+                  <div class="d-flex justify-content-center align-items-center gap-2">
+                    <button class="btn btn-warning btn-sm" (click)="verDetalle(pedido.id)">Ver más</button>
+                    <button class="btn btn-success btn-sm" [disabled]="pedido.estado === 'entregado'" (click)="marcarComoEntregado(pedido)">
+                      Marcar como Entregado
+                    </button>
+                  </div>
+                </td>
+                 <td class="text-center">
+                 <button class="btn btn-info btn-sm" (click)="editarPedido(pedido.id)">Editar</button>
                 </td>
               </tr>
             </tbody>
@@ -153,7 +162,16 @@ export class PedidosListComponent {
     this.clienteSearch$.next(value);
   }
   onFechaEntrega(value: string) {
-    console.log('Valor recibido en filtro de fecha:', value);
     this.fechaEntrega$.next(value);
+  }
+
+  editarPedido(id: string) {
+    this.router.navigate(['/pedidos/editar', id]);
+  }
+
+  marcarComoEntregado(pedido: Pedido) {
+    if (pedido.estado !== 'entregado') {
+      this.pedidosService.updatePedido(pedido.id, { estado: 'entregado' });
+    }
   }
 }

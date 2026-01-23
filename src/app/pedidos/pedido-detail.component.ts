@@ -24,6 +24,7 @@ import { PedidosService } from './pedidos.service'
           <div><strong>Profesión:</strong> {{cliente.profesion}}</div>
           <div><strong>Talla Camisa:</strong> {{cliente.tallaCamisa}}</div>
           <div><strong>Talla Pantalón:</strong> {{cliente.tallaPantalon}}</div>
+          <div><strong>Talla Mandil:</strong> {{cliente.tallaMandil}}</div>
           <div><strong>Especificaciones:</strong> {{cliente.especificaciones}}</div>
         </div>
         <div *ngIf="!(cliente$ | async)">Cargando datos del cliente...</div>
@@ -34,7 +35,10 @@ import { PedidosService } from './pedidos.service'
           <div><strong>Descripción:</strong> {{pedido.descripcion}}</div>
         </div>
       </div>
-      <button class="btn btn-secondary mt-3" (click)="volver()">Volver</button>
+      <button class="btn btn-secondary mt-3 me-2" (click)="volver()">Volver</button>
+      <button class="btn btn-primary mt-3" [disabled]="pedido.estado === 'en_proceso' || pedido.estado === 'terminado' || pedido.estado === 'entregado'" (click)="cambiarAEnProceso(pedido)">
+        Marcar como En Proceso
+      </button>
     </ng-container>
   `
 })
@@ -58,5 +62,13 @@ export class PedidoDetailComponent {
 
   volver() {
     this.router.navigate(['/pedidos']);
+  }
+
+  cambiarAEnProceso(pedido: Pedido) {
+    if (pedido.estado !== 'en_proceso' && pedido.estado !== 'terminado' && pedido.estado !== 'entregado') {
+      this.pedidosService.updatePedido(pedido.id, { estado: 'en_proceso' }).then(() => {
+        // Opcional: recargar o mostrar mensaje
+      });
+    }
   }
 }
