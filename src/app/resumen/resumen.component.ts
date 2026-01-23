@@ -1,25 +1,47 @@
 import { CommonModule } from '@angular/common'
 import { Component } from '@angular/core'
-import { BehaviorSubject, Observable, combineLatest } from 'rxjs'
-import { map } from 'rxjs/operators'
+import { FormsModule } from '@angular/forms'
 import { PedidosService } from '../pedidos/pedidos.service'
 
 @Component({
   standalone: true,
   selector: 'app-resumen',
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="row">
-      <div class="d-none d-lg-block">
-        <div class="resumen-container">
-          <h5 class="mb-3">📊 Resumen de pedidos por día</h5>
-          <div class="mb-2">
-            <label class="me-2">
-              <input type="date" (change)="onFechaInicio(getValue($event))">
+      <div class="col-12">
+        <div class="resumen-container mb-4">
+          <h5 class="mb-3">📅 Calendario de ternos por día</h5>
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <label>Año:
+              <select [(ngModel)]="selectedYear" (ngModelChange)="generarCalendario()">
+                <option *ngFor="let y of years" [value]="y">{{y}}</option>
+              </select>
+            </label>
+            <label>Mes:
+              <select [(ngModel)]="selectedMonth" (ngModelChange)="generarCalendario()">
+                <option *ngFor="let m of meses; let i = index" [value]="i">{{m}}</option>
+              </select>
             </label>
           </div>
-          <div class="mt-2">
-            <strong>Total pedidos:</strong> <span class=" badge bg-primary ms-2">{{totalPedidos$ | async}}</span><br>
+          <div class="table-responsive">
+            <table class="table table-bordered text-center align-middle" style="min-width:420px; table-layout: fixed;">
+              <thead>
+                <tr>
+                  <th *ngFor="let d of dias" style="width: 60px;">{{d}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let semana of calendario; let s = index">
+                  <td *ngFor="let dia of semana">
+                    <div *ngIf="dia">
+                      <div><strong>{{dia.dia}}</strong></div>
+                      <div *ngIf="dia.ternos > 0" class="badge bg-primary">{{dia.ternos}} ternos</div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -27,78 +49,93 @@ import { PedidosService } from '../pedidos/pedidos.service'
   `
 })
 export class ResumenComponent {
-  fechaInicio$ = new BehaviorSubject<Date | null>(null);
-  fechaFin$ = new BehaviorSubject<Date | null>(null);
-
   pedidos$ = this.pedidosService.getPedidos();
+  dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  meses = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  years: number[] = [];
+  selectedYear: number;
+  selectedMonth: number;
+  calendario: ({ dia: number, ternos: number } | null)[][] = [];
+  ternosPorDia: Record<string, number> = {};
 
-
-  resumen$: Observable<{ fecha: string, count: number }[]> = combineLatest([
-    this.pedidos$,
-    this.fechaInicio$,
-    this.fechaFin$
-  ]).pipe(
-    map(([pedidos, inicio, fin]: [any[], Date | null, Date | null]) => {
-      // Convertir fechas a yyyy-MM-dd para comparación exacta
-      const inicioStr = inicio ? inicio.toISOString().slice(0, 10) : null;
-      const finStr = fin ? fin.toISOString().slice(0, 10) : null;
-      // Si no hay filtro de fecha, no mostrar nada
-      if (!inicioStr && !finStr) {
-        return [];
-      }
-      // Filtrar por fechaEntrega exacta (como string o Date)
-      const filtrados = pedidos.filter((p: { fechaEntrega: string | Date }) => {
+  constructor(private pedidosService: PedidosService) {
+    const hoy = new Date();
+    this.selectedYear = hoy.getFullYear();
+    this.selectedMonth = hoy.getMonth();
+    // Rango de años: 5 atrás y 5 adelante
+    const current = hoy.getFullYear();
+    for (let y = current - 5; y <= current + 5; y++) {
+      this.years.push(y);
+    }
+    this.pedidos$.subscribe(pedidos => {
+      this.ternosPorDia = {};
+      pedidos.forEach(p => {
         let fechaEntregaStr = '';
-        if (p.fechaEntrega instanceof Date) {
-          fechaEntregaStr = p.fechaEntrega.toISOString().slice(0, 10);
-        } else if (typeof p.fechaEntrega === 'string') {
+        if (typeof p.fechaEntrega === 'string') {
           fechaEntregaStr = p.fechaEntrega.slice(0, 10);
-        }
-        if (inicioStr && fechaEntregaStr !== inicioStr) return false;
-        if (finStr && fechaEntregaStr !== finStr) return false;
-        return true;
-      });
-      // Agrupar por fechaEntrega (string)
-      const agrupado: Record<string, number> = {};
-      filtrados.forEach((p: { fechaEntrega: string | Date }) => {
-        let fechaEntregaStr = '';
-        if (p.fechaEntrega instanceof Date) {
+        } else if (p.fechaEntrega instanceof Date) {
           fechaEntregaStr = p.fechaEntrega.toISOString().slice(0, 10);
-        } else if (typeof p.fechaEntrega === 'string') {
-          fechaEntregaStr = p.fechaEntrega.slice(0, 10);
+        } else if (
+          p.fechaEntrega &&
+          typeof p.fechaEntrega === 'object' &&
+          typeof (p.fechaEntrega as any).toDate === 'function' &&
+          typeof p.fechaEntrega !== 'string'
+        ) {
+          fechaEntregaStr = (p.fechaEntrega as any).toDate().toISOString().slice(0, 10);
         }
         if (fechaEntregaStr) {
-          agrupado[fechaEntregaStr] = (agrupado[fechaEntregaStr] || 0) + 1;
+          const key = fechaEntregaStr;
+          const cantidad = typeof p.cantidadTernos === 'number' ? p.cantidadTernos : 0;
+          this.ternosPorDia[key] = (this.ternosPorDia[key] || 0) + cantidad;
         }
       });
-      // Ordenar por fecha descendente
-      return Object.entries(agrupado)
-        .map(([fecha, count]) => ({ fecha, count }))
-        .sort((a, b) => b.fecha.localeCompare(a.fecha));
-    })
-  );
-
-  totalPedidos$ = this.resumen$.pipe(
-    map(res => res.reduce((acc, r) => acc + r.count, 0))
-  );
-
-  diaMaxPedidos$ = this.resumen$.pipe(
-    map(res => {
-      if (!res.length) return '-';
-      const max = res.reduce((acc, r) => r.count > acc.count ? r : acc, res[0]);
-      return `${max.fecha} (${max.count})`;
-    })
-  );
-
-  constructor(private pedidosService: PedidosService) {}
-
-  getValue(event: Event): string {
-    return (event.target && (event.target as HTMLInputElement).value) || '';
+      this.generarCalendario();
+    });
   }
-  onFechaInicio(value: string) {
-    this.fechaInicio$.next(value ? new Date(value + 'T00:00:00') : null);
+
+  generarCalendario() {
+    const year = this.selectedYear;
+    const month = this.selectedMonth;
+    const primerDia = new Date(year, month, 1);
+    const ultimoDia = new Date(year, month + 1, 0);
+    const diasMes = ultimoDia.getDate();
+    // Día de la semana del primer día (0=domingo, 1=lunes...)
+    let diaSemana = primerDia.getDay();
+    diaSemana = diaSemana === 0 ? 6 : diaSemana - 1; // Ajustar para que lunes=0
+    // Si domingo, saltar columna
+    if (diaSemana === 6) diaSemana = 0;
+    const semanas: ({ dia: number, ternos: number } | null)[][] = [];
+    let semana: ({ dia: number, ternos: number } | null)[] = new Array(6).fill(null);
+    let dia = 1;
+    // Primera semana
+    for (let i = 0; i < 6; i++) {
+      if (i >= diaSemana) {
+        const key = this.getFechaKey(year, month, dia);
+        semana[i] = { dia, ternos: this.ternosPorDia[key] || 0 };
+        dia++;
+      } else {
+        semana[i] = null;
+      }
+    }
+    semanas.push(semana);
+    // Siguientes semanas
+    while (dia <= diasMes) {
+      semana = new Array(6).fill(null);
+      for (let i = 0; i < 6 && dia <= diasMes; i++) {
+        const key = this.getFechaKey(year, month, dia);
+        semana[i] = { dia, ternos: this.ternosPorDia[key] || 0 };
+        dia++;
+      }
+      semanas.push(semana);
+    }
+    this.calendario = semanas;
   }
-  onFechaFin(value: string) {
-    this.fechaFin$.next(value ? new Date(value + 'T23:59:59') : null);
+
+  getFechaKey(year: number, month: number, day: number): string {
+    // yyyy-MM-dd
+    return `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
   }
 }

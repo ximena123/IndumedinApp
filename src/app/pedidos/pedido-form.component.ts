@@ -67,8 +67,16 @@ import { PedidosService } from './pedidos.service'
         </div>
       </div>
       <div class="mb-3">
-        <label class="form-label">Descripción</label>
-        <textarea formControlName="descripcion" placeholder="Descripción" required class="form-control" rows="3"></textarea>
+        <div class="row">
+          <div class="col-md-3 mb-2">
+            <label class="form-label">Cantidad de ternos</label>
+            <input formControlName="cantidadTernos" type="number" min="1" class="form-control" placeholder="Cantidad de ternos">
+          </div>
+          <div class="col-md-9 mb-2">
+            <label class="form-label">Descripción</label>
+            <textarea formControlName="descripcion" placeholder="Descripción" required class="form-control" rows="3"></textarea>
+          </div>
+        </div>
       </div>
       <div class="text-end">
         <button type="button" class="btn btn-secondary btn-lg px-4 me-2" (click)="cancelar()">Cancelar</button>
@@ -81,6 +89,7 @@ export class PedidoFormComponent implements OnInit {
   pedidoId: string | null = null;
   buscadorActivo = false;
   form = this.fb.group({
+        cantidadTernos: ['', Validators.required],
     descripcion: ['', Validators.required],
     fechaEntrega: ['', Validators.required],
     estado: ['pendiente', Validators.required],
@@ -138,7 +147,8 @@ export class PedidoFormComponent implements OnInit {
               precio: typeof pedido.precio === 'number' ? pedido.precio : undefined,
               abono: typeof pedido.abono === 'number' ? pedido.abono : undefined,
               saldo: typeof pedido.saldo === 'number' ? pedido.saldo : undefined,
-              notas: pedido.notas ?? ''
+              notas: pedido.notas ?? '',
+              cantidadTernos: typeof pedido.cantidadTernos === 'number' ? String(pedido.cantidadTernos) : ''
             });
             // Buscar el cliente y seleccionarlo
             this.clientesService.getCliente(pedido.clienteId).subscribe(cliente => {
@@ -215,7 +225,8 @@ export class PedidoFormComponent implements OnInit {
         abono: formValue.abono ?? undefined,
         saldo: formValue.saldo ?? undefined,
         notas: formValue.notas ?? '',
-        fechaEntrega: formValue.fechaEntrega ? new Date(formValue.fechaEntrega) : undefined
+        fechaEntrega: formValue.fechaEntrega ? formValue.fechaEntrega : undefined,
+        cantidadTernos: formValue.cantidadTernos !== '' && formValue.cantidadTernos != null ? Number(formValue.cantidadTernos) : undefined
       };
       if (this.pedidoId) {
         // Editar pedido existente
