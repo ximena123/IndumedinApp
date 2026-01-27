@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common'
-import { Component } from '@angular/core'
+import { ChangeDetectorRef, Component } from '@angular/core'
 import { FormsModule } from '@angular/forms'
+import { getDaysInMonth } from 'date-fns'
 import { PedidosService } from '../pedidos/pedidos.service'
 
 @Component({
@@ -8,6 +9,51 @@ import { PedidosService } from '../pedidos/pedidos.service'
   selector: 'app-resumen',
   imports: [CommonModule, FormsModule],
   template: `
+    <style>
+      @media (max-width: 600px) {
+        .resumen-container {
+          padding: 0.5rem;
+        }
+        .resumen-container .table-responsive {
+          overflow-x: auto;
+        }
+        .resumen-container table {
+          font-size: 10px;
+          min-width: 420px;
+          width: 100%;
+          
+        }
+        .resumen-container th, .resumen-container td {
+          padding: 0.1rem !important;
+          min-width: 28px !important;
+          width: 28px !important;
+          height: 38px !important;
+        }
+        .resumen-container .badge {
+          font-size: 9px;
+          padding: 0.15em 0.3em;
+        }
+        .resumen-container h5 {
+          font-size: 1rem;
+        }
+        .resumen-container select, .resumen-container label {
+          font-size: 11px;
+        }
+      }
+      @media (max-width: 400px) {
+        .resumen-container table {
+          font-size: 7px;
+        }
+        .resumen-container th, .resumen-container td {
+          min-width: 15px !important;
+          width: 15px !important;
+          height: 21px !important;
+        }
+        .resumen-container .badge {
+          font-size: 7px;
+        }
+      }
+    </style>
     <div class="row">
       <div class="col-12">
         <div class="resumen-container mb-4">
@@ -20,7 +66,7 @@ import { PedidosService } from '../pedidos/pedidos.service'
             </label>
             <label>Mes:
               <select [(ngModel)]="selectedMonth" (ngModelChange)="generarCalendario()">
-                <option *ngFor="let m of meses; let i = index" [value]="i">{{m}}</option>
+                <option *ngFor="let m of meses; let i = index" [ngValue]="i">{{m}}</option>
               </select>
             </label>
           </div>
@@ -28,15 +74,22 @@ import { PedidosService } from '../pedidos/pedidos.service'
             <table class="table table-bordered text-center align-middle" style="min-width:420px; table-layout: fixed;">
               <thead>
                 <tr>
-                  <th *ngFor="let d of dias" style="width: 60px;">{{d}}</th>
+                  <th *ngFor="let d of dias" style="width: 60px;">
+                    <span class="d-none d-sm-inline">{{d.largo}}</span>
+                    <span class="d-inline d-sm-none">{{d.corto}}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <tr *ngFor="let semana of calendario; let s = index">
-                  <td *ngFor="let dia of semana">
+                  <td *ngFor="let dia of semana"
+                      [ngClass]="{
+                        'bg-danger text-white': dia && dia.ternos >= 5,
+                        'bg-success text-white': dia && dia.ternos > 0 && dia.ternos < 5
+                      }">
                     <div *ngIf="dia">
                       <div><strong>{{dia.dia}}</strong></div>
-                      <div *ngIf="dia.ternos > 0" class="badge bg-primary">{{dia.ternos}} ternos</div>
+                      <div *ngIf="dia.ternos > 0" class="badge bg-primary">{{dia.ternos}}</div>
                     </div>
                   </td>
                 </tr>
@@ -50,7 +103,15 @@ import { PedidosService } from '../pedidos/pedidos.service'
 })
 export class ResumenComponent {
   pedidos$ = this.pedidosService.getPedidos();
-  dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  dias = [
+    { largo: 'Lun', corto: 'L' },
+    { largo: 'Mar', corto: 'M' },
+    { largo: 'Mié', corto: 'X' },
+    { largo: 'Jue', corto: 'J' },
+    { largo: 'Vie', corto: 'V' },
+    { largo: 'Sáb', corto: 'S' },
+    { largo: 'Dom', corto: 'D' },
+  ];
   meses = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
@@ -61,7 +122,7 @@ export class ResumenComponent {
   calendario: ({ dia: number, ternos: number } | null)[][] = [];
   ternosPorDia: Record<string, number> = {};
 
-  constructor(private pedidosService: PedidosService) {
+  constructor(private pedidosService: PedidosService, private cdr: ChangeDetectorRef) {
     const hoy = new Date();
     this.selectedYear = hoy.getFullYear();
     this.selectedMonth = hoy.getMonth();
@@ -99,22 +160,19 @@ export class ResumenComponent {
   generarCalendario() {
     const year = this.selectedYear;
     const month = this.selectedMonth;
+    const diasMes = getDaysInMonth(new Date(year, month, 1));
     const primerDia = new Date(year, month, 1);
-    const ultimoDia = new Date(year, month + 1, 0);
-    const diasMes = ultimoDia.getDate();
-    // Día de la semana del primer día (0=domingo, 1=lunes...)
-    let diaSemana = primerDia.getDay();
-    diaSemana = diaSemana === 0 ? 6 : diaSemana - 1; // Ajustar para que lunes=0
-    // Si domingo, saltar columna
-    if (diaSemana === 6) diaSemana = 0;
+    let diaSemana = primerDia.getDay(); // 0=domingo, 1=lunes, ...
+    diaSemana = diaSemana === 0 ? 6 : diaSemana - 1;
     const semanas: ({ dia: number, ternos: number } | null)[][] = [];
-    let semana: ({ dia: number, ternos: number } | null)[] = new Array(6).fill(null);
+    let semana: ({ dia: number, ternos: number } | null)[] = new Array(7).fill(null);
     let dia = 1;
     // Primera semana
-    for (let i = 0; i < 6; i++) {
-      if (i >= diaSemana) {
+    for (let i = 0; i < 7; i++) {
+      if (i >= diaSemana && dia <= diasMes) {
         const key = this.getFechaKey(year, month, dia);
-        semana[i] = { dia, ternos: this.ternosPorDia[key] || 0 };
+        const ternos = this.ternosPorDia[key] || 0;
+        semana[i] = { dia, ternos };
         dia++;
       } else {
         semana[i] = null;
@@ -123,19 +181,27 @@ export class ResumenComponent {
     semanas.push(semana);
     // Siguientes semanas
     while (dia <= diasMes) {
-      semana = new Array(6).fill(null);
-      for (let i = 0; i < 6 && dia <= diasMes; i++) {
-        const key = this.getFechaKey(year, month, dia);
-        semana[i] = { dia, ternos: this.ternosPorDia[key] || 0 };
-        dia++;
+      semana = new Array(7).fill(null);
+      for (let i = 0; i < 7; i++) {
+        if (dia <= diasMes) {
+          const key = this.getFechaKey(year, month, dia);
+          const ternos = this.ternosPorDia[key] || 0;
+          semana[i] = { dia, ternos };
+          dia++;
+        } else {
+          semana[i] = null;
+        }
       }
       semanas.push(semana);
     }
     this.calendario = semanas;
+    this.cdr.detectChanges();
   }
 
   getFechaKey(year: number, month: number, day: number): string {
-    // yyyy-MM-dd
-    return `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    // yyyy-MM-dd (mes en base 1, siempre dos dígitos)
+    const mes = (month + 1).toString().padStart(2, '0');
+    const dia = day.toString().padStart(2, '0');
+    return `${year}-${mes}-${dia}`;
   }
 }

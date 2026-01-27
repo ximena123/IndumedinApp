@@ -13,9 +13,26 @@ import { PedidosService } from './pedidos.service'
   selector: 'app-pedidos-list',
   imports: [CommonModule, FormsModule, ResumenComponent],
   template: `
+    <style>
+      @media (max-width: 600px) {
+        .pedidos-filtros input[type="date"] {
+          font-size: 14px;
+          min-width: 100px;
+          width: 100%;
+        }
+        .pedidos-filtros input[type="date"]::-webkit-input-placeholder {
+          color: #888;
+          opacity: 1;
+        }
+        .pedidos-filtros input[type="date"]::placeholder {
+          color: #888;
+          opacity: 1;
+        }
+      }
+    </style>
     <div class="row">
       <div class="col-lg-8 col-md-12">
-        <!-- CONTENIDO ORIGINAL DE PEDIDOS -->
+        <!-- TABS DE ESTADO DE PEDIDOS -->
         <div class="container mt-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2>Pedidos</h2>
@@ -23,8 +40,22 @@ import { PedidosService } from './pedidos.service'
               Nuevo pedido
             </button>
           </div>
+          <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+              <a class="nav-link" [class.active]="estadoTab === 'todos'" (click)="setEstadoTab('todos')">Todos</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" [class.active]="estadoTab === 'pendiente'" (click)="setEstadoTab('pendiente')">Pendiente</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" [class.active]="estadoTab === 'en_proceso'" (click)="setEstadoTab('en_proceso')">En proceso</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" [class.active]="estadoTab === 'entregado'" (click)="setEstadoTab('entregado')">Entregado</a>
+            </li>
+          </ul>
           <div class="mb-3 row">
-            <div class="col-md-6">
+            <div class="col-md-6 pedidos-filtros">
               <input
                 type="text"
                 class="form-control"
@@ -33,15 +64,16 @@ import { PedidosService } from './pedidos.service'
                 (input)="onClienteSearch(busquedaCliente)"
               />
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 pedidos-filtros">
               <input
                 type="date"
                 class="form-control"
+                placeholder="Filtrar por fecha"
                 [(ngModel)]="busquedaFecha"
                 (change)="onFechaEntrega(busquedaFecha)"
               />
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 pedidos-filtros">
               <button
                 class="btn btn-outline-secondary"
                 (click)="borrarFiltros()"
@@ -56,7 +88,7 @@ import { PedidosService } from './pedidos.service'
                 <tr>
                   <th class="text-center">Cliente</th>
                   <th class="text-center">Fecha de entrega</th>
-                  <th class="text-center d-none d-md-table-cell">Estado</th>
+                  <th class="text-center">Estado</th>
                   <th class="text-center d-none d-md-table-cell">
                     Descripción
                   </th>
@@ -64,7 +96,7 @@ import { PedidosService } from './pedidos.service'
                   <th class="text-center d-none d-md-table-cell">Abono</th>
                   <th class="text-center d-none d-md-table-cell">Saldo</th>
                   <th class="text-center">Acciones</th>
-                  <th class="text-center">Editar</th>
+                  <th class="text-center d-none d-md-table-cell">Editar</th>
                 </tr>
               </thead>
               <tbody>
@@ -73,7 +105,7 @@ import { PedidosService } from './pedidos.service'
                   <td class="text-center">
                     {{ getFechaEntrega(pedido.fechaEntrega) }}
                   </td>
-                  <td class="text-center d-none d-md-table-cell">
+                  <td class="text-center ">
                     {{ pedido.estado }}
                   </td>
                   <td class="d-none d-md-table-cell" style="font-size: 12px">
@@ -94,23 +126,23 @@ import { PedidosService } from './pedidos.service'
                         class="btn btn-warning btn-sm w-100 w-md-auto"
                         (click)="verDetalle(pedido.id)"
                       >
-                        Ver más
+                        
+                      <i class="fa-regular fa-eye"></i>
                       </button>
                       <button
-                        class="btn btn-success btn-sm w-100 w-md-auto"
+                        class="btn btn-success btn-sm w-100 w-md-auto d-none d-md-inline-block"
                         [disabled]="pedido.estado === 'entregado'"
                         (click)="marcarComoEntregado(pedido)"
-                      >
-                        Marcar como Entregado
+                      >Entregado
                       </button>
-                    </div>
+                    </div> 
                   </td>
-                  <td class="text-center">
+                  <td class="text-center d-none d-md-table-cell">
                     <button
                       class="btn btn-info btn-sm w-100 w-md-auto"
                       (click)="editarPedido(pedido.id)"
                     >
-                      Editar
+                     <i class="fa-solid fa-pencil"></i>
                     </button>
                   </td>
                 </tr>
@@ -199,6 +231,8 @@ export class PedidosListComponent {
   }
   pedidos$ = this.pedidosService.getPedidos();
 
+  estadoTab: string = 'todos';
+
   pedidosFiltrados$: Observable<Pedido[]> = combineLatest([
     this.pedidos$,
     this.clienteSearch$,
@@ -206,7 +240,7 @@ export class PedidosListComponent {
     this.page$,
   ]).pipe(
     map(([pedidos, clienteSearch, fechaEntrega, page]) => {
-      const filtrados = pedidos.filter((p) => {
+      let filtrados = pedidos.filter((p) => {
         const nombreCoincide =
           !clienteSearch ||
           this.getClienteNombre(p.clienteId)
@@ -237,6 +271,23 @@ export class PedidosListComponent {
         return nombreCoincide && pedidoFechaStr === fechaEntrega;
       });
 
+      // Filtro por estado
+      if (this.estadoTab !== 'todos') {
+        filtrados = filtrados.filter(p => p.estado === this.estadoTab);
+      }
+
+      // Ordenar por fecha de entrega descendente (más reciente primero)
+      filtrados.sort((a, b) => {
+        const getDate = (f: any) => {
+          if (!f) return 0;
+          if (typeof f === 'string') return new Date(f).getTime();
+          if (f instanceof Date) return f.getTime();
+          if (typeof f === 'object' && typeof f.toDate === 'function') return f.toDate().getTime();
+          return 0;
+        };
+        return getDate(b.fechaEntrega) - getDate(a.fechaEntrega);
+      });
+
       this.totalPages = Math.max(1, Math.ceil(filtrados.length / this.pageSize));
       const paginaValida = Math.min(Math.max(page, 1), this.totalPages);
       if (paginaValida !== this.page) this.page = paginaValida;
@@ -246,6 +297,12 @@ export class PedidosListComponent {
       return filtrados.slice(start, start + this.pageSize);
     }),
   );
+
+  setEstadoTab(tab: string) {
+    this.estadoTab = tab;
+    this.page = 1;
+    this.page$.next(1);
+  }
   clientesMap: Record<string, string> = {};
 
   constructor(

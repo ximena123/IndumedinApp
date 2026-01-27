@@ -31,11 +31,11 @@ import { ClientesService } from './clientes.service'
               <th>Nombre</th>
               <th>Apellidos</th>
               <th>Teléfono</th>
-              <th>Profesión</th>
-              <th>Talla Camisa</th>
-              <th>Talla Pantalón</th>
-              <th>Especificaciones</th>
-              <th>Acciones</th>
+              <th class="d-none d-md-table-cell" >Profesión</th>
+              <th class="d-none d-md-table-cell" >Talla Camisa</th>
+              <th class="d-none d-md-table-cell">Talla Pantalón</th>
+              <th class="d-none d-md-table-cell">Especificaciones</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -43,12 +43,12 @@ import { ClientesService } from './clientes.service'
               <td>{{cliente.nombreCompleto}}</td>
               <td>{{cliente.apellidos}}</td>
               <td>{{cliente.telefono}}</td>
-              <td>{{cliente.profesion}}</td>
-              <td>{{cliente.tallaCamisa}}</td>
-              <td>{{cliente.tallaPantalon}}</td>
-              <td>{{cliente.especificaciones}}</td>
+              <td class="d-none d-md-table-cell">{{cliente.profesion}}</td>
+              <td class="d-none d-md-table-cell">{{cliente.tallaCamisa}}</td>
+              <td class="d-none d-md-table-cell">{{cliente.tallaPantalon}}</td>
+              <td class="d-none d-md-table-cell">{{cliente.especificaciones}}</td>
               <td>
-                <button class="btn btn-sm btn-warning" (click)="editarCliente(cliente.id)">Editar</button>
+                <button class="btn btn-sm btn-warning" (click)="editarCliente(cliente.id)"><i class="fa-solid fa-pencil"></i></button>
               </td>
             </tr>
           </tbody>
