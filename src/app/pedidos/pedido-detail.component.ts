@@ -55,16 +55,33 @@ import { PedidosService } from './pedidos.service'
             </div>
           </div>
         </div>
+        <div class="col-12 col-md-6 d-block d-md-none">
+          <div class="card mb-3 h-100">
+            <div class="card-header bg-danger text-white">Datos del Pago</div>
+            <div class="card-body">
+              <div><strong>Precio:</strong> {{ pedido.precio }}</div>
+              <div>
+                <strong>Abono:</strong>
+                {{ pedido.abono || '-' }}
+              </div>
+              <div><strong>Saldo:</strong> {{ pedido.saldo }}</div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="d-flex flex-column flex-md-row gap-2 mt-3">
         <button
-          class="btn btn-info btn-sm w-100 w-md-auto d-block d-md-none"
+          class="btn btn-warning btn-sm w-100 w-md-auto d-block d-md-none"
           (click)="editarPedido(pedido.id)"
         >
           <i class="fa-solid fa-pencil"></i>
         </button>
-        <button class="btn btn-secondary w-100 w-md-auto" (click)="volver()">
-          Volver
+        <button
+          class="btn btn-success  w-100 w-md-auto d-inline-block d-md-none"
+          [disabled]="pedido.estado === 'entregado'"
+          (click)="marcarComoEntregado(pedido)"
+        >
+          Marcar como Entregado
         </button>
         <button
           class="btn btn-primary w-100 w-md-auto"
@@ -76,6 +93,9 @@ import { PedidosService } from './pedidos.service'
           (click)="cambiarAEnProceso(pedido)"
         >
           Marcar como En Proceso
+        </button>
+        <button class="btn btn-secondary w-100 w-md-auto" (click)="volver()">
+          Volver
         </button>
       </div>
     </ng-container>
@@ -118,6 +138,11 @@ export class PedidoDetailComponent {
         .then(() => {
           // Opcional: recargar o mostrar mensaje
         });
+    }
+  }
+  marcarComoEntregado(pedido: Pedido) {
+    if (pedido.estado !== 'entregado') {
+      this.pedidosService.updatePedido(pedido.id, { estado: 'entregado' });
     }
   }
 }

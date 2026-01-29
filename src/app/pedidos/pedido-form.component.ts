@@ -166,7 +166,7 @@ export class PedidoFormComponent implements OnInit {
     fechaEntrega: ['', Validators.required],
     estado: ['pendiente', Validators.required],
     precio: [undefined as number | null | undefined],
-    abono: [undefined as number | null | undefined],
+    abono: [0 as number | null | undefined],
     saldo: [undefined as number | null | undefined],
     notas: [''],
   });
