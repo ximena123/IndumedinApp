@@ -77,8 +77,8 @@ import { PedidosService } from './pedidos.service'
           <i class="fa-solid fa-pencil"></i>
         </button>
         <button
+          *ngIf="pedido.estado !== 'entregado'"
           class="btn btn-success  w-100 w-md-auto d-inline-block d-md-none"
-          [disabled]="pedido.estado === 'entregado'"
           (click)="marcarComoEntregado(pedido)"
         >
           Marcar como Entregado
