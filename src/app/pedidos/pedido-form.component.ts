@@ -13,13 +13,16 @@ import { ClientesService } from '../clientes/clientes.service'
 import { MedidasService } from '../medidas/medidas.service'
 import { Cliente } from '../models/cliente.model'
 import { PedidosService } from './pedidos.service'
+import { ResumenComponent } from '../resumen/resumen.component'
 
 @Component({
   standalone: true,
   selector: 'app-pedido-form',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, ResumenComponent],
   template: `
     <h2>{{ pedidoId ? 'Editar Pedido' : 'Nuevo Pedido' }}</h2>
+    <div class="row">
+    <div class="col-lg-8 col-md-12">
     <form
       [formGroup]="form"
       (ngSubmit)="onSubmit()"
@@ -154,6 +157,11 @@ import { PedidosService } from './pedidos.service'
             </button>
       </div>
     </form>
+    </div>
+     <div class="col-lg-4 d-none d-lg-block">
+        <app-resumen></app-resumen>
+      </div>
+    </div>
   `,
 })
 export class PedidoFormComponent implements OnInit {
@@ -305,30 +313,30 @@ export class PedidoFormComponent implements OnInit {
   }
 
   onSubmit() {
-  if (this.form.valid && this.clienteSeleccionado && !this.guardando) {
-    this.guardando = true;
-    const formValue = this.form.value;
-    const pedido: Partial<import('../models/pedido.model').Pedido> = {
-      clienteId: this.clienteSeleccionado!.id,
-      descripcion: formValue.descripcion ?? '',
-      estado: formValue.estado as 'pendiente' | 'en_proceso' | 'terminado' | 'entregado' | undefined,
-      precio: formValue.precio ?? undefined,
-      abono: formValue.abono ?? undefined,
-      saldo: formValue.saldo ?? undefined,
-      notas: formValue.notas ?? '',
-      fechaEntrega: formValue.fechaEntrega ? formValue.fechaEntrega : undefined,
-      cantidadTernos: formValue.cantidadTernos !== '' && formValue.cantidadTernos != null ? Number(formValue.cantidadTernos) : undefined
-    };
-    const finalizar = () => { this.guardando = false; };
-    if (this.pedidoId) {
-      this.pedidosService.updatePedido(this.pedidoId, pedido).then(() => {
-        this.router.navigate(['/pedidos']);
-      }).finally(finalizar);
-    } else {
-      this.pedidosService.addPedido(pedido).then(docRef => {
-        this.router.navigate(['/pedidos']);
-      }).finally(finalizar);
+    if (this.form.valid && this.clienteSeleccionado && !this.guardando) {
+      this.guardando = true;
+      const formValue = this.form.value;
+      const pedido: Partial<import('../models/pedido.model').Pedido> = {
+        clienteId: this.clienteSeleccionado!.id,
+        descripcion: formValue.descripcion ?? '',
+        estado: formValue.estado as 'pendiente' | 'en_proceso' | 'terminado' | 'entregado' | undefined,
+        precio: formValue.precio ?? undefined,
+        abono: formValue.abono ?? undefined,
+        saldo: formValue.saldo ?? undefined,
+        notas: formValue.notas ?? '',
+        fechaEntrega: formValue.fechaEntrega ? formValue.fechaEntrega : undefined,
+        cantidadTernos: formValue.cantidadTernos !== '' && formValue.cantidadTernos != null ? Number(formValue.cantidadTernos) : undefined
+      };
+      const finalizar = () => { this.guardando = false; };
+      if (this.pedidoId) {
+        this.pedidosService.updatePedido(this.pedidoId, pedido).then(() => {
+          this.router.navigate(['/pedidos']);
+        }).finally(finalizar);
+      } else {
+        this.pedidosService.addPedido(pedido).then(docRef => {
+          this.router.navigate(['/pedidos']);
+        }).finally(finalizar);
+      }
     }
   }
-}
 }
