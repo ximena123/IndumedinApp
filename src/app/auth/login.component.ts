@@ -9,13 +9,39 @@ import { AuthService } from './auth.service'
   selector: 'app-login',
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <h2>Login</h2>
-    <form [formGroup]="form" (ngSubmit)="onLogin()">
-      <input formControlName="email" placeholder="Email" type="email" required>
-      <input formControlName="password" placeholder="Contraseña" type="password" required>
-      <button type="submit" [disabled]="form.invalid">Entrar</button>
-      <div *ngIf="error">{{error}}</div>
-    </form>
+    <div class="d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+      <div class="card shadow-lg border-0" style="width: 100%; max-width: 420px;">
+        <div class="card-body p-4 p-md-5">
+          <div class="text-center mb-4">
+            <i class="fa-solid fa-scissors fa-2x text-dark mb-2"></i>
+            <h3 class="fw-bold mb-1">Indumedin</h3>
+            <p class="text-muted small">Ingresa a tu cuenta</p>
+          </div>
+          <form [formGroup]="form" (ngSubmit)="onLogin()">
+            <div class="mb-3">
+              <label class="form-label">Correo electronico</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
+                <input formControlName="email" type="email" class="form-control" placeholder="correo@ejemplo.com" required>
+              </div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label">Contrasena</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+                <input formControlName="password" type="password" class="form-control" placeholder="Tu contrasena" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-dark w-100 py-2" [disabled]="form.invalid">
+              <i class="fa-solid fa-right-to-bracket me-2"></i>Entrar
+            </button>
+            <div *ngIf="error" class="alert alert-danger mt-3 mb-0 py-2 text-center small">
+              <i class="fa-solid fa-circle-exclamation me-1"></i>{{error}}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   `
 })
 export class LoginComponent {

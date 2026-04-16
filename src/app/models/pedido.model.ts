@@ -11,4 +11,10 @@ export interface Pedido {
   saldo?: number;
   notas?: string;
   cantidadTernos?: number;
+  pedidoEmpresaId?: string;
+  bordadoActivo?: boolean;
+  bordadoNombre?: string;
+  bordadoProfesion?: string;
+  bordadoLogos?: string;
+  bordadoPersonalizado?: string;
 }

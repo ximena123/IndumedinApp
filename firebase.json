@@ -15,12 +15,12 @@
     "rewrites": [
       {
         "source": "**",
-        "destination": "/index.csr.html"
+        "destination": "/index.html"
       }
     ],
     "headers": [
         {
-          "source": "/index.csr.html",
+          "source": "/index.html",
           "headers": [
             {
               "key": "Cache-Control",

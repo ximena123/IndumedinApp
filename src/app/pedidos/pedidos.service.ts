@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core'
-import { Firestore, addDoc, collection, collectionData, doc, query, updateDoc, where } from '@angular/fire/firestore'
+import { Firestore, addDoc, collection, collectionData, deleteDoc, doc, query, updateDoc, where } from '@angular/fire/firestore'
 import { Observable } from 'rxjs'
 import { Pedido } from '../models/pedido.model'
 
@@ -14,6 +14,11 @@ export class PedidosService {
 
   getPedidosByCliente(clienteId: string): Observable<Pedido[]> {
     const q = query(this.pedidosRef, where('clienteId', '==', clienteId));
+    return collectionData(q, { idField: 'id' }) as Observable<Pedido[]>;
+  }
+
+  getPedidosByEmpresa(pedidoEmpresaId: string): Observable<Pedido[]> {
+    const q = query(this.pedidosRef, where('pedidoEmpresaId', '==', pedidoEmpresaId));
     return collectionData(q, { idField: 'id' }) as Observable<Pedido[]>;
   }
 
@@ -32,5 +37,9 @@ export class PedidosService {
 
   updatePedido(id: string, pedido: Partial<Pedido>): Promise<void> {
     return updateDoc(doc(this.firestore, `pedidos/${id}`), pedido);
+  }
+
+  deletePedido(id: string): Promise<void> {
+    return deleteDoc(doc(this.firestore, `pedidos/${id}`));
   }
 }

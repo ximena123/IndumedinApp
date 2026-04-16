@@ -39,6 +39,22 @@ export const routes: Routes = [
 		   path: 'pedidos/editar/:id',
 		   loadComponent: () => import('./pedidos/pedido-form.component').then(m => m.PedidoFormComponent)
 	},
+	{
+		path: 'pedidos-empresa',
+		loadComponent: () => import('./pedidos-empresa/pedidos-empresa-list.component').then(m => m.PedidosEmpresaListComponent)
+	},
+	{
+		path: 'pedidos-empresa/nuevo',
+		loadComponent: () => import('./pedidos-empresa/pedido-empresa-form.component').then(m => m.PedidoEmpresaFormComponent)
+	},
+	{
+		path: 'pedidos-empresa/editar/:id',
+		loadComponent: () => import('./pedidos-empresa/pedido-empresa-form.component').then(m => m.PedidoEmpresaFormComponent)
+	},
+	{
+		path: 'pedidos-empresa/:id',
+		loadComponent: () => import('./pedidos-empresa/pedido-empresa-detail.component').then(m => m.PedidoEmpresaDetailComponent)
+	},
 		{
 		path: 'resumen',
 		loadComponent: () => import('./resumen/resumen.component').then(m => m.ResumenComponent)

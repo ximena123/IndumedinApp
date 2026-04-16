@@ -57,44 +57,58 @@ import { PedidosService } from '../pedidos/pedidos.service'
     <div class="row">
       <div class="col-12">
         <div class="resumen-container mb-4">
-          <h5 class="mb-3">📅 Calendario de ternos por día</h5>
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <label>Año:
-              <select [(ngModel)]="selectedYear" (ngModelChange)="generarCalendario()">
-                <option *ngFor="let y of years" [value]="y">{{y}}</option>
-              </select>
-            </label>
-            <label>Mes:
-              <select [(ngModel)]="selectedMonth" (ngModelChange)="generarCalendario()">
-                <option *ngFor="let m of meses; let i = index" [ngValue]="i">{{m}}</option>
-              </select>
-            </label>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-bordered text-center align-middle" style="min-width:420px; table-layout: fixed;">
-              <thead>
-                <tr>
-                  <th *ngFor="let d of dias" style="width: 60px;">
-                    <span class="d-none d-sm-inline">{{d.largo}}</span>
-                    <span class="d-inline d-sm-none">{{d.corto}}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let semana of calendario; let s = index">
-                  <td *ngFor="let dia of semana"
-                      [ngClass]="{
-                        'bg-danger text-white': dia && dia.ternos >= 5,
-                        'bg-success text-white': dia && dia.ternos > 0 && dia.ternos < 5
-                      }">
-                    <div *ngIf="dia">
-                      <div><strong>{{dia.dia}}</strong></div>
-                      <div *ngIf="dia.ternos > 0" class="badge bg-primary">{{dia.ternos}}</div>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-dark text-white d-flex align-items-center">
+              <i class="fa-regular fa-calendar me-2"></i>
+              <span class="fw-semibold">Calendario de ternos</span>
+            </div>
+            <div class="card-body p-3">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <div>
+                  <label class="small fw-semibold me-1">Ano:</label>
+                  <select class="form-select form-select-sm d-inline-block" style="width: auto;" [(ngModel)]="selectedYear" (ngModelChange)="generarCalendario()">
+                    <option *ngFor="let y of years" [value]="y">{{y}}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="small fw-semibold me-1">Mes:</label>
+                  <select class="form-select form-select-sm d-inline-block" style="width: auto;" [(ngModel)]="selectedMonth" (ngModelChange)="generarCalendario()">
+                    <option *ngFor="let m of meses; let i = index" [ngValue]="i">{{m}}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-bordered text-center align-middle mb-0" style="min-width:420px; table-layout: fixed;">
+                  <thead>
+                    <tr class="table-light">
+                      <th *ngFor="let d of dias" class="py-2" style="width: 60px; font-size: 0.8rem;">
+                        <span class="d-none d-sm-inline">{{d.largo}}</span>
+                        <span class="d-inline d-sm-none">{{d.corto}}</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let semana of calendario; let s = index">
+                      <td *ngFor="let dia of semana" class="p-1"
+                          style="border-radius: 4px;"
+                          [ngClass]="{
+                            'bg-danger text-white': dia && dia.ternos >= 5,
+                            'bg-success text-white': dia && dia.ternos > 0 && dia.ternos < 5
+                          }">
+                        <div *ngIf="dia">
+                          <div><strong>{{dia.dia}}</strong></div>
+                          <div *ngIf="dia.ternos > 0" class="badge bg-primary" style="font-size: 0.7rem;">{{dia.ternos}}</div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="d-flex gap-3 mt-2 small text-muted">
+                <span><span class="badge bg-success">&nbsp;</span> 1-4 ternos</span>
+                <span><span class="badge bg-danger">&nbsp;</span> 5+ ternos</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

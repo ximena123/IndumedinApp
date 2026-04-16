@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ng build --configuration production)",
+      "Bash(npx ng build --configuration production)",
+      "Bash(firebase deploy)",
+      "Bash(npx firebase deploy)",
+      "Bash(npx firebase-tools deploy)",
+      "Bash(npx ng build)",
+      "Bash(npx firebase-tools deploy --only hosting)",
+      "Bash(npx firebase firestore:get clientes --project indumedinapp)",
+      "Bash(firebase deploy --only hosting)"
+    ]
+  }
+}
