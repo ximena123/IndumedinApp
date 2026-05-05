@@ -146,6 +146,11 @@ import { PedidosService } from './pedidos.service'
           </button>
         </div>
         <div class="col-12 d-block d-md-none">
+          <button class="btn btn-info text-white w-100" (click)="facturarEnOdoo()">
+            <i class="fa-solid fa-file-invoice-dollar me-1"></i> Facturar
+          </button>
+        </div>
+        <div class="col-12 d-block d-md-none">
           <button class="btn btn-secondary w-100" (click)="volver(pedido)">Volver</button>
         </div>
       </div>
@@ -163,6 +168,9 @@ import { PedidosService } from './pedidos.service'
         </button>
         <button class="btn btn-outline-danger" (click)="mostrarModalEliminar = true">
           <i class="fa-solid fa-trash me-1"></i> Eliminar
+        </button>
+        <button class="btn btn-info text-white" (click)="facturarEnOdoo()">
+          <i class="fa-solid fa-file-invoice-dollar me-1"></i> Facturar
         </button>
         <button class="btn btn-outline-secondary ms-auto" (click)="volver(pedido)">
           <i class="fa-solid fa-arrow-left me-1"></i> Volver
@@ -253,5 +261,10 @@ export class PedidoDetailComponent {
 
   irAEmpresa(empresaId: string) {
     this.router.navigate(['/pedidos-empresa', empresaId]);
+  }
+
+  facturarEnOdoo() {
+    const url = 'https://indumedin.kismasoft.com/web#action=203&model=account.move&view_type=form&cids=1&menu_id=117';
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
