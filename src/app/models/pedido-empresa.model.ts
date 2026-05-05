@@ -13,4 +13,7 @@ export interface PedidoEmpresa {
   fechaEntrega: string;
   fechaCreacion: Date;
   estado: EstadoPedidoEmpresa;
+  total?: number;
+  abono?: number;
+  saldo?: number;
 }

@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core'
 import { Firestore, addDoc, collection, collectionData, deleteDoc, doc, query, updateDoc, where } from '@angular/fire/firestore'
 import { Observable } from 'rxjs'
 import { Pedido } from '../models/pedido.model'
+import { stripUndefined } from '../shared/firestore.util'
 
 @Injectable({ providedIn: 'root' })
 export class PedidosService {
@@ -32,11 +33,12 @@ export class PedidosService {
   }
 
   addPedido(pedido: any): Promise<any> {
-    return addDoc(this.pedidosRef, { ...pedido, fechaCreacion: new Date() });
+    const limpio = stripUndefined({ ...pedido, fechaCreacion: new Date() });
+    return addDoc(this.pedidosRef, limpio);
   }
 
   updatePedido(id: string, pedido: Partial<Pedido>): Promise<void> {
-    return updateDoc(doc(this.firestore, `pedidos/${id}`), pedido);
+    return updateDoc(doc(this.firestore, `pedidos/${id}`), stripUndefined(pedido));
   }
 
   deletePedido(id: string): Promise<void> {

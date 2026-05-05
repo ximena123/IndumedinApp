@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core'
 import { Firestore, collection, collectionData, deleteDoc, doc, docData, updateDoc } from '@angular/fire/firestore'
 import { Observable } from 'rxjs'
 import { Cliente } from '../models/cliente.model'
+import { stripUndefined } from '../shared/firestore.util'
 
 @Injectable({ providedIn: 'root' })
 export class ClientesService {
@@ -17,17 +18,16 @@ export class ClientesService {
   }
 
   addCliente(cliente: any): Promise<any> {
-    // Usar addDoc para obtener la referencia con id
-    // Importar addDoc si no está
+    const limpio = stripUndefined({ ...cliente, createdAt: new Date() });
     // @ts-ignore
     return import('@angular/fire/firestore').then(firestoreModule => {
       const addDoc = firestoreModule.addDoc;
-      return addDoc(this.clientesRef, { ...cliente, createdAt: new Date() });
+      return addDoc(this.clientesRef, limpio);
     });
   }
 
   updateCliente(id: string, cliente: Partial<Cliente>): Promise<void> {
-    return updateDoc(doc(this.firestore, `clientes/${id}`), cliente);
+    return updateDoc(doc(this.firestore, `clientes/${id}`), stripUndefined(cliente));
   }
 
   deleteCliente(id: string): Promise<void> {

@@ -7,6 +7,8 @@ import { map } from 'rxjs/operators'
 import { Pedido } from '../models/pedido.model'
 import { PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosService } from '../pedidos/pedidos.service'
+import { ResumenComponent } from '../resumen/resumen.component'
+import { matchesSearch } from '../shared/search.util'
 import { PedidosEmpresaFiltrosService } from './pedidos-empresa-filtros.service'
 import { PedidosEmpresaService } from './pedidos-empresa.service'
 
@@ -15,12 +17,15 @@ interface PedidoEmpresaResumen extends PedidoEmpresa {
   valorTotal: number;
   totalAbonado: number;
   saldoPendiente: number;
+  totalMostrado: number;
+  saldoMostrado: number;
+  esTotalGlobal: boolean;
 }
 
 @Component({
   standalone: true,
   selector: 'app-pedidos-empresa-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ResumenComponent],
   template: `
     <!-- Modal confirmar eliminación -->
     <div class="modal fade" [class.show]="mostrarModalEliminar" [style.display]="mostrarModalEliminar ? 'block' : 'none'" tabindex="-1">
@@ -44,6 +49,8 @@ interface PedidoEmpresaResumen extends PedidoEmpresa {
     </div>
     <div class="modal-backdrop fade show" *ngIf="mostrarModalEliminar"></div>
 
+    <div class="row">
+      <div class="col-lg-8 col-md-12">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2 class="mb-0 fw-bold">Pedidos de Empresa</h2>
       <button class="btn btn-primary" (click)="nuevoPedidoEmpresa()">
@@ -107,8 +114,11 @@ interface PedidoEmpresaResumen extends PedidoEmpresa {
           <div class="text-muted small mb-2">
             <i class="fa-regular fa-calendar me-1"></i> {{ pe.fechaEntrega }}
             <span class="ms-2"><i class="fa-solid fa-users me-1"></i>{{ pe.numeroEmpleados }}</span>
-            <span class="ms-2"><strong>\${{ pe.valorTotal }}</strong></span>
-            <span class="ms-2 text-danger" *ngIf="pe.saldoPendiente > 0">(Saldo: \${{ pe.saldoPendiente }})</span>
+            <span class="ms-2">
+              <strong>\${{ pe.totalMostrado }}</strong>
+              <i *ngIf="pe.esTotalGlobal" class="fa-solid fa-handshake ms-1 text-info" title="Total acordado con la empresa"></i>
+            </span>
+            <span class="ms-2 text-danger" *ngIf="pe.saldoMostrado > 0">(Saldo: \${{ pe.saldoMostrado }})</span>
           </div>
           <div class="d-flex gap-2">
             <button class="btn btn-warning btn-sm flex-fill" (click)="verDetalle(pe.id)">
@@ -163,8 +173,11 @@ interface PedidoEmpresaResumen extends PedidoEmpresa {
                   {{ pe.estado === 'en_proceso' ? 'En proceso' : pe.estado }}
                 </span>
               </td>
-              <td class="text-end">\${{ pe.valorTotal }}</td>
-              <td class="text-end fw-bold" [class.text-danger]="pe.saldoPendiente > 0">\${{ pe.saldoPendiente }}</td>
+              <td class="text-end">
+                \${{ pe.totalMostrado }}
+                <i *ngIf="pe.esTotalGlobal" class="fa-solid fa-handshake ms-1 text-info" title="Total acordado con la empresa"></i>
+              </td>
+              <td class="text-end fw-bold" [class.text-danger]="pe.saldoMostrado > 0">\${{ pe.saldoMostrado }}</td>
               <td class="text-center">
                 <div class="btn-group btn-group-sm">
                   <button class="btn btn-outline-secondary" (click)="verDetalle(pe.id)" title="Ver detalle">
@@ -184,6 +197,11 @@ interface PedidoEmpresaResumen extends PedidoEmpresa {
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+      </div>
+      <div class="col-lg-4 d-none d-lg-block">
+        <app-resumen></app-resumen>
       </div>
     </div>
   `,
@@ -207,27 +225,32 @@ export class PedidosEmpresaListComponent {
     this.estadoTab$,
   ]).pipe(
     map(([empresas, pedidos, busqueda, estado]) => {
-      const term = (busqueda || '').toLowerCase().trim();
+      const term = busqueda || '';
 
       const empresasConResumen: PedidoEmpresaResumen[] = empresas.map((e) => {
         const pedidosEmpresa = pedidos.filter((p) => p.pedidoEmpresaId === e.id);
         const valorTotal = pedidosEmpresa.reduce((acc, p) => acc + (p.precio || 0), 0);
         const totalAbonado = pedidosEmpresa.reduce((acc, p) => acc + (p.abono || 0), 0);
+        const saldoPendiente = valorTotal - totalAbonado;
+        const esTotalGlobal = e.total != null;
+        const totalMostrado = esTotalGlobal ? (e.total ?? 0) : valorTotal;
+        const saldoMostrado = e.saldo != null ? e.saldo : saldoPendiente;
         return {
           ...e,
           numeroEmpleados: pedidosEmpresa.length,
           valorTotal,
           totalAbonado,
-          saldoPendiente: valorTotal - totalAbonado,
+          saldoPendiente,
+          totalMostrado,
+          saldoMostrado,
+          esTotalGlobal,
         };
       });
 
       let filtrados = empresasConResumen;
       if (term) {
-        filtrados = filtrados.filter(
-          (e) =>
-            e.nombreEmpresa.toLowerCase().includes(term) ||
-            (e.responsable || '').toLowerCase().includes(term),
+        filtrados = filtrados.filter((e) =>
+          matchesSearch(`${e.nombreEmpresa ?? ''} ${e.responsable ?? ''}`, term),
         );
       }
       if (estado !== 'todos') {

@@ -14,6 +14,7 @@ import { MedidasService } from '../medidas/medidas.service'
 import { Cliente } from '../models/cliente.model'
 import { PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosEmpresaService } from '../pedidos-empresa/pedidos-empresa.service'
+import { matchesSearch } from '../shared/search.util'
 import { PedidosService } from './pedidos.service'
 import { ResumenComponent } from '../resumen/resumen.component'
 
@@ -60,10 +61,11 @@ import { ResumenComponent } from '../resumen/resumen.component'
     <form
       [formGroup]="form"
       (ngSubmit)="onSubmit()"
+      novalidate
     >
       <div class="row align-items-end mb-3">
         <div class="col-md-8 position-relative">
-          <label class="form-label">Cliente</label>
+          <label class="form-label">Cliente <span class="text-danger">*</span></label>
           <input
             type="text"
             class="form-control"
@@ -72,7 +74,11 @@ import { ResumenComponent } from '../resumen/resumen.component'
             autocomplete="off"
             (focus)="buscadorActivo = true"
             (blur)="onBlurBuscador()"
+            [class.is-invalid]="submitted && !clienteSeleccionado"
           />
+          <div class="invalid-feedback d-block" *ngIf="submitted && !clienteSeleccionado">
+            Selecciona un cliente o crea uno nuevo.
+          </div>
           <div
             class="list-group position-absolute w-100"
             style="z-index:10;"
@@ -116,14 +122,15 @@ import { ResumenComponent } from '../resumen/resumen.component'
       </div>
       <div class="row mb-3">
         <div class="col-md-3 mb-2" *ngIf="!empresaContexto">
-          <label class="form-label">Fecha de entrega</label>
+          <label class="form-label">Fecha de entrega <span class="text-danger">*</span></label>
           <input
             formControlName="fechaEntrega"
             type="date"
             [min]="hoy"
-            required
             class="form-control"
+            [class.is-invalid]="hasError('fechaEntrega')"
           />
+          <div class="invalid-feedback" *ngIf="hasError('fechaEntrega')">La fecha de entrega es requerida.</div>
         </div>
         <div class="col-md-3 mb-2" *ngIf="!empresaContexto">
           <label class="form-label">Estado</label>
@@ -135,13 +142,15 @@ import { ResumenComponent } from '../resumen/resumen.component'
           </select>
         </div>
         <div class="col-md-2 mb-2">
-          <label class="form-label">Precio</label>
+          <label class="form-label">Precio <span class="text-danger" *ngIf="!empresaContexto">*</span></label>
           <input
             formControlName="precio"
             type="number"
             placeholder="Precio"
             class="form-control"
+            [class.is-invalid]="hasError('precio')"
           />
+          <div class="invalid-feedback" *ngIf="hasError('precio')">El precio es requerido.</div>
         </div>
         <div class="col-md-2 mb-2">
           <label class="form-label">Abono</label>
@@ -166,24 +175,27 @@ import { ResumenComponent } from '../resumen/resumen.component'
       <div class="mb-3">
         <div class="row">
           <div class="col-md-3 mb-2">
-            <label class="form-label">Cantidad de ternos</label>
+            <label class="form-label">Cantidad de ternos <span class="text-danger">*</span></label>
             <input
               formControlName="cantidadTernos"
               type="number"
               min="1"
               class="form-control"
               placeholder="Cantidad de ternos"
+              [class.is-invalid]="hasError('cantidadTernos')"
             />
+            <div class="invalid-feedback" *ngIf="hasError('cantidadTernos')">La cantidad de ternos es requerida.</div>
           </div>
           <div class="col-md-9 mb-2">
-            <label class="form-label">Descripción</label>
+            <label class="form-label">Descripción <span class="text-danger">*</span></label>
             <textarea
               formControlName="descripcion"
               placeholder="Descripción"
-              required
               class="form-control"
               rows="3"
+              [class.is-invalid]="hasError('descripcion')"
             ></textarea>
+            <div class="invalid-feedback" *ngIf="hasError('descripcion')">La descripción es requerida.</div>
           </div>
         </div>
       </div>
@@ -241,9 +253,14 @@ import { ResumenComponent } from '../resumen/resumen.component'
           </div>
         </div>
       </fieldset>
+      <div *ngIf="submitted && (form.invalid || !clienteSeleccionado)" class="alert alert-warning mb-3">
+        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+        Por favor completa los campos requeridos marcados en rojo.
+      </div>
+
       <div class="d-flex justify-content-end gap-2 mt-3">
         <button type="button" class="btn btn-outline-secondary px-4" (click)="cancelar()" [disabled]="guardando">Cancelar</button>
-            <button type="submit" class="btn btn-success px-5" [disabled]="form.invalid || !clienteSeleccionado || guardando || clienteDuplicado">
+            <button type="submit" class="btn btn-success px-5" [disabled]="guardando || clienteDuplicado">
               <span *ngIf="guardando" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
               Guardar
             </button>
@@ -260,6 +277,7 @@ import { ResumenComponent } from '../resumen/resumen.component'
 })
 export class PedidoFormComponent implements OnInit {
   guardando = false;
+  submitted = false;
   pedidoId: string | null = null;
   empresaContexto: PedidoEmpresa | null = null;
   clientesYaEnEmpresa: Set<string> = new Set();
@@ -275,7 +293,7 @@ export class PedidoFormComponent implements OnInit {
     descripcion: ['', Validators.required],
     fechaEntrega: ['', Validators.required],
     estado: ['pendiente', Validators.required],
-    precio: [undefined as number | null | undefined],
+    precio: [undefined as number | null | undefined, Validators.required],
     abono: [0 as number | null | undefined],
     saldo: [undefined as number | null | undefined],
     notas: [''],
@@ -305,17 +323,10 @@ export class PedidoFormComponent implements OnInit {
       this.clienteBusquedaControl.valueChanges.pipe(startWith('')),
     ]).pipe(
       map(([clientes, filtro]) => {
-        const f = (filtro || '').toLowerCase();
+        const f = filtro || '';
         if (!f) return clientes;
-        if (!f.includes(' ')) {
-          return clientes.filter((c) =>
-            c.nombreCompleto.toLowerCase().includes(f),
-          );
-        }
-        return clientes.filter(
-          (c) =>
-            c.nombreCompleto.toLowerCase().includes(f) ||
-            c.apellidos?.toLowerCase().includes(f),
+        return clientes.filter((c) =>
+          matchesSearch(`${c.nombreCompleto ?? ''} ${c.apellidos ?? ''}`, f),
         );
       }),
     );
@@ -333,10 +344,13 @@ export class PedidoFormComponent implements OnInit {
               fechaEntrega: empresa.fechaEntrega,
               estado: empresa.estado,
             });
+            this.form.get('precio')?.clearValidators();
+            this.form.get('precio')?.updateValueAndValidity();
           }
         });
         this.cargarEmpleadosEmpresa(empresaId);
-      } else if (clienteIdQuery && !this.pedidoId) {
+      }
+      if (clienteIdQuery && !this.pedidoId) {
         this.clientesService.getCliente(clienteIdQuery).subscribe((cliente) => {
           if (cliente) {
             this.seleccionarCliente(cliente);
@@ -385,6 +399,8 @@ export class PedidoFormComponent implements OnInit {
           this.pedidosEmpresaService.getPedidoEmpresa(pedido.pedidoEmpresaId).subscribe((empresa) => {
             if (empresa) {
               this.empresaContexto = empresa;
+              this.form.get('precio')?.clearValidators();
+              this.form.get('precio')?.updateValueAndValidity();
             }
           });
           this.cargarEmpleadosEmpresa(pedido.pedidoEmpresaId);
@@ -461,6 +477,7 @@ export class PedidoFormComponent implements OnInit {
   }
 
   private verificarClienteDuplicado(): void {
+    if (this.guardando) return;
     this.clienteDuplicado =
       !!this.empresaContexto &&
       !!this.clienteSeleccionado &&
@@ -468,7 +485,11 @@ export class PedidoFormComponent implements OnInit {
   }
 
   crearCliente() {
-    this.router.navigate(['/clientes/nuevo']);
+    const queryParams: { empresaId?: string } = {};
+    if (this.empresaContexto) {
+      queryParams.empresaId = this.empresaContexto.id;
+    }
+    this.router.navigate(['/clientes/nuevo'], { queryParams });
   }
 
   prepararWhatsApp(pedido: Partial<import('../models/pedido.model').Pedido>) {
@@ -526,7 +547,18 @@ export class PedidoFormComponent implements OnInit {
     this.router.navigate(['/pedidos']);
   }
 
+  hasError(controlName: string): boolean {
+    const ctrl = this.form.get(controlName);
+    if (!ctrl) return false;
+    return ctrl.invalid && (this.submitted || ctrl.touched);
+  }
+
   onSubmit() {
+    this.submitted = true;
+    if (this.form.invalid || !this.clienteSeleccionado) {
+      this.form.markAllAsTouched();
+      return;
+    }
     if (this.clienteDuplicado) return;
     if (this.form.valid && this.clienteSeleccionado && !this.guardando) {
       this.guardando = true;

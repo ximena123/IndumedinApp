@@ -11,6 +11,7 @@ import {
 } from '@angular/fire/firestore'
 import { Observable } from 'rxjs'
 import { PedidoEmpresa } from '../models/pedido-empresa.model'
+import { stripUndefined } from '../shared/firestore.util'
 
 @Injectable({ providedIn: 'root' })
 export class PedidosEmpresaService {
@@ -26,12 +27,13 @@ export class PedidosEmpresaService {
   }
 
   addPedidoEmpresa(pedidoEmpresa: Partial<PedidoEmpresa>): Promise<{ id: string }> {
-    return addDoc(this.pedidosEmpresaRef, { ...pedidoEmpresa, fechaCreacion: new Date() })
+    const limpio = stripUndefined({ ...pedidoEmpresa, fechaCreacion: new Date() });
+    return addDoc(this.pedidosEmpresaRef, limpio)
       .then((ref) => ({ id: ref.id }));
   }
 
   updatePedidoEmpresa(id: string, pedidoEmpresa: Partial<PedidoEmpresa>): Promise<void> {
-    return updateDoc(doc(this.firestore, `pedidos_empresa/${id}`), pedidoEmpresa);
+    return updateDoc(doc(this.firestore, `pedidos_empresa/${id}`), stripUndefined(pedidoEmpresa));
   }
 
   deletePedidoEmpresa(id: string): Promise<void> {

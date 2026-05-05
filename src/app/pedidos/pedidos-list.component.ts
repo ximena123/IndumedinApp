@@ -8,6 +8,7 @@ import { ClientesService } from '../clientes/clientes.service'
 import { Pedido } from '../models/pedido.model'
 import { PedidosEmpresaService } from '../pedidos-empresa/pedidos-empresa.service'
 import { ResumenComponent } from '../resumen/resumen.component'
+import { matchesSearch } from '../shared/search.util'
 import { PedidosFiltrosService } from './pedidos-filtros.service'
 import { PedidosService } from './pedidos.service'
 
@@ -159,6 +160,9 @@ interface PedidoListRow {
                   <button class="btn btn-info btn-sm flex-fill" (click)="editarFila(fila)">
                     <i class="fa-solid fa-pencil me-1"></i> Editar
                   </button>
+                  <button *ngIf="fila.tipo === 'empresa'" class="btn btn-success btn-sm" (click)="agregarEmpleadoEmpresa(fila)" title="Agregar empleado">
+                    <i class="fa-solid fa-plus"></i>
+                  </button>
                   <button class="btn btn-danger btn-sm" (click)="solicitarEliminar(fila)">
                     <i class="fa-solid fa-trash"></i>
                   </button>
@@ -219,6 +223,9 @@ interface PedidoListRow {
                       </button>
                       <button class="btn btn-outline-danger" (click)="solicitarEliminar(fila)" title="Eliminar">
                         <i class="fa-solid fa-trash"></i>
+                      </button>
+                      <button *ngIf="fila.tipo === 'empresa'" class="btn btn-outline-info" (click)="agregarEmpleadoEmpresa(fila)" title="Agregar empleado">
+                        <i class="fa-solid fa-plus"></i>
                       </button>
                     </div>
                   </td>
@@ -318,12 +325,10 @@ export class PedidosListComponent {
     this.page$,
   ]).pipe(
     map(([filas, search, fechaEntrega, page]) => {
-      const term = (search || '').toLowerCase();
+      const term = search || '';
       let filtrados = filas.filter((f) => {
-        const nombreCoincide =
-          !term ||
-          f.nombre.toLowerCase().includes(term) ||
-          (f.responsable ?? '').toLowerCase().includes(term);
+        const haystack = `${f.nombre ?? ''} ${f.responsable ?? ''}`;
+        const nombreCoincide = !term || matchesSearch(haystack, term);
         if (!fechaEntrega) return nombreCoincide;
         const filaFechaStr = this.toFechaStr(f.fechaEntrega);
         return nombreCoincide && filaFechaStr === fechaEntrega;
@@ -444,6 +449,11 @@ export class PedidosListComponent {
     } else {
       this.router.navigate(['/pedidos/editar', fila.id]);
     }
+  }
+
+  agregarEmpleadoEmpresa(fila: PedidoListRow) {
+    if (fila.tipo !== 'empresa') return;
+    this.router.navigate(['/pedidos/nuevo'], { queryParams: { empresaId: fila.id } });
   }
 
   onClienteSearch(value: string) {

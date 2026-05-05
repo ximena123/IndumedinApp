@@ -5,7 +5,10 @@ import { Router } from '@angular/router'
 import { BehaviorSubject, Observable, combineLatest, firstValueFrom } from 'rxjs'
 import { map, startWith, tap } from 'rxjs/operators'
 import { Cliente } from '../models/cliente.model'
+import { Pedido } from '../models/pedido.model'
+import { PedidosService } from '../pedidos/pedidos.service'
 import { ResumenComponent } from '../resumen/resumen.component'
+import { matchesSearch } from '../shared/search.util'
 import { ClientesService } from './clientes.service'
 
 @Component({
@@ -40,6 +43,33 @@ import { ClientesService } from './clientes.service'
           </div>
         </div>
         <div class="modal-backdrop fade show" *ngIf="mostrarModalNormalizar"></div>
+
+        <!-- Modal confirmar eliminación -->
+        <div class="modal fade" [class.show]="mostrarModalEliminar" [style.display]="mostrarModalEliminar ? 'block' : 'none'" tabindex="-1">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Eliminar cliente</h5>
+              </div>
+              <div class="modal-body">
+                <p>¿Estás segura de que deseas eliminar a <strong>{{ clienteEliminar?.nombreCompleto }} {{ clienteEliminar?.apellidos }}</strong>?</p>
+                <p *ngIf="pedidosDelCliente > 0" class="text-danger mb-0">
+                  <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                  Este cliente tiene <strong>{{ pedidosDelCliente }}</strong> pedido{{ pedidosDelCliente === 1 ? '' : 's' }} asociado{{ pedidosDelCliente === 1 ? '' : 's' }} que también se eliminarán.
+                </p>
+                <p *ngIf="pedidosDelCliente === 0" class="text-muted mb-0">Esta acción no se puede deshacer.</p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" (click)="cancelarEliminar()" [disabled]="eliminando">Cancelar</button>
+                <button type="button" class="btn btn-danger" (click)="confirmarEliminar()" [disabled]="eliminando">
+                  <span *ngIf="eliminando" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  <i *ngIf="!eliminando" class="fa-solid fa-trash me-1"></i> Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-backdrop fade show" *ngIf="mostrarModalEliminar"></div>
 
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
           <h2 class="mb-0 fw-bold">Clientes</h2>
@@ -77,9 +107,14 @@ import { ClientesService } from './clientes.service'
                     <span class="badge bg-light text-dark" *ngIf="cliente.tallaPantalon">Pantalon: {{cliente.tallaPantalon}}</span>
                   </div>
                 </div>
-                <button class="btn btn-sm btn-outline-primary" (click)="editarCliente(cliente.id)">
-                  <i class="fa-solid fa-pencil"></i>
-                </button>
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-outline-primary" (click)="editarCliente(cliente.id)" title="Editar">
+                    <i class="fa-solid fa-pencil"></i>
+                  </button>
+                  <button class="btn btn-outline-danger" (click)="solicitarEliminar(cliente)" title="Eliminar">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -97,7 +132,7 @@ import { ClientesService } from './clientes.service'
                 <th class="text-center">Camisa</th>
                 <th class="text-center">Pantalon</th>
                 <th>Especificaciones</th>
-                <th class="text-center" style="width: 80px;">Acciones</th>
+                <th class="text-center" style="width: 120px;">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -110,9 +145,14 @@ import { ClientesService } from './clientes.service'
                 <td class="text-center">{{cliente.tallaPantalon}}</td>
                 <td class="text-muted" style="max-width: 180px; font-size: 13px;">{{cliente.especificaciones}}</td>
                 <td class="text-center">
-                  <button class="btn btn-sm btn-outline-primary" (click)="editarCliente(cliente.id)" title="Editar">
-                    <i class="fa-solid fa-pencil"></i>
-                  </button>
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" (click)="editarCliente(cliente.id)" title="Editar">
+                      <i class="fa-solid fa-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" (click)="solicitarEliminar(cliente)" title="Eliminar">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -165,10 +205,9 @@ export class ClientesListComponent {
   ]).pipe(
     map(([clientes, filtro, page]) => {
       const lista = Array.isArray(clientes) ? clientes : [];
-      const f = (filtro || '').toLowerCase();
-      const filtrados = lista.filter(c =>
-        c.nombreCompleto.toLowerCase().includes(f) ||
-        (c.apellidos?.toLowerCase().includes(f))
+      const f = filtro || '';
+      const filtrados = lista.filter((c) =>
+        matchesSearch(`${c.nombreCompleto ?? ''} ${c.apellidos ?? ''}`, f),
       );
       this.totalPages = Math.max(1, Math.ceil(filtrados.length / this.pageSize));
       const paginaValida = Math.min(Math.max(page, 1), this.totalPages);
@@ -185,11 +224,46 @@ export class ClientesListComponent {
   mostrarModalNormalizar = false;
   normalizando = false;
   resultadoNormalizar = '';
+  mostrarModalEliminar = false;
+  clienteEliminar: Cliente | null = null;
+  pedidosDelCliente = 0;
+  eliminando = false;
 
-  constructor(private clientesService: ClientesService, private router: Router) {}
+  constructor(
+    private clientesService: ClientesService,
+    private pedidosService: PedidosService,
+    private router: Router,
+  ) {}
 
   nuevoCliente() { this.router.navigate(['/clientes/nuevo']); }
   editarCliente(id: string) { this.router.navigate(['/clientes/editar', id]); }
+
+  async solicitarEliminar(cliente: Cliente): Promise<void> {
+    this.clienteEliminar = cliente;
+    const pedidos = await firstValueFrom(this.pedidosService.getPedidosByCliente(cliente.id));
+    this.pedidosDelCliente = pedidos.length;
+    this.mostrarModalEliminar = true;
+  }
+
+  cancelarEliminar(): void {
+    this.mostrarModalEliminar = false;
+    this.clienteEliminar = null;
+    this.pedidosDelCliente = 0;
+  }
+
+  async confirmarEliminar(): Promise<void> {
+    if (!this.clienteEliminar || this.eliminando) return;
+    this.eliminando = true;
+    try {
+      const id = this.clienteEliminar.id;
+      const pedidos: Pedido[] = await firstValueFrom(this.pedidosService.getPedidosByCliente(id));
+      await Promise.all(pedidos.map((p) => this.pedidosService.deletePedido(p.id)));
+      await this.clientesService.deleteCliente(id);
+      this.cancelarEliminar();
+    } finally {
+      this.eliminando = false;
+    }
+  }
   setPage(page: number) {
     const paginaValida = Math.min(Math.max(page, 1), this.totalPages || 1);
     this.page = paginaValida;

@@ -8,6 +8,7 @@ import { Cliente } from '../models/cliente.model'
 import { Pedido } from '../models/pedido.model'
 import { EstadoPedidoEmpresa, PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosService } from '../pedidos/pedidos.service'
+import { ResumenComponent } from '../resumen/resumen.component'
 import { PedidosEmpresaService } from './pedidos-empresa.service'
 
 interface EmpleadoFila {
@@ -18,9 +19,11 @@ interface EmpleadoFila {
 @Component({
   standalone: true,
   selector: 'app-pedido-empresa-detail',
-  imports: [CommonModule],
+  imports: [CommonModule, ResumenComponent],
   template: `
     <ng-container *ngIf="pedidoEmpresa$ | async as pe">
+    <div class="row">
+      <div class="col-lg-8 col-md-12">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h2 class="mb-0 fw-bold">{{ pe.nombreEmpresa }}</h2>
         <span class="badge rounded-pill fs-6"
@@ -73,6 +76,22 @@ interface EmpleadoFila {
                 <span class="fw-bold">Saldo pendiente:</span>
                 <strong class="fs-5" [class.text-danger]="r.saldoPendiente > 0">\${{ r.saldoPendiente }}</strong>
               </div>
+              <ng-container *ngIf="pe.total != null || pe.abono != null || pe.saldo != null">
+                <hr class="my-2">
+                <div class="text-muted small fw-semibold mb-1">
+                  <i class="fa-solid fa-handshake me-1"></i> Total acordado (empresa)
+                </div>
+                <div class="d-flex justify-content-between mb-1" *ngIf="pe.total != null">
+                  <span>Total:</span> <strong>\${{ pe.total }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1" *ngIf="pe.abono != null">
+                  <span>Abono:</span> <strong class="text-success">\${{ pe.abono }}</strong>
+                </div>
+                <div class="d-flex justify-content-between" *ngIf="pe.saldo != null">
+                  <span class="fw-bold">Saldo:</span>
+                  <strong [class.text-danger]="pe.saldo > 0">\${{ pe.saldo }}</strong>
+                </div>
+              </ng-container>
             </div>
           </div>
         </div>
@@ -166,6 +185,11 @@ interface EmpleadoFila {
           <i class="fa-solid fa-arrow-left me-1"></i> Volver
         </button>
       </div>
+      </div>
+      <div class="col-lg-4 d-none d-lg-block">
+        <app-resumen></app-resumen>
+      </div>
+    </div>
     </ng-container>
   `,
 })
