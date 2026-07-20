@@ -9,11 +9,12 @@ import { Pedido } from '../models/pedido.model'
 import { PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosEmpresaService } from '../pedidos-empresa/pedidos-empresa.service'
 import { PedidosService } from './pedidos.service'
+import { FacturaFormComponent } from '../facturas/factura-form.component'
 
 @Component({
   standalone: true,
   selector: 'app-pedido-detail',
-  imports: [CommonModule],
+  imports: [CommonModule, FacturaFormComponent],
   template: `
     <ng-container *ngIf="pedido$ | async as pedido">
       <ng-container *ngIf="empresa$ | async as empresa">
@@ -146,7 +147,7 @@ import { PedidosService } from './pedidos.service'
           </button>
         </div>
         <div class="col-12 d-block d-md-none">
-          <button class="btn btn-info text-white w-100" (click)="facturarEnOdoo()">
+          <button class="btn btn-info text-white w-100" (click)="abrirFormularioFactura()">
             <i class="fa-solid fa-file-invoice-dollar me-1"></i> Facturar
           </button>
         </div>
@@ -169,18 +170,28 @@ import { PedidosService } from './pedidos.service'
         <button class="btn btn-outline-danger" (click)="mostrarModalEliminar = true">
           <i class="fa-solid fa-trash me-1"></i> Eliminar
         </button>
-        <button class="btn btn-info text-white" (click)="facturarEnOdoo()">
+        <button class="btn btn-info text-white" (click)="abrirFormularioFactura()">
           <i class="fa-solid fa-file-invoice-dollar me-1"></i> Facturar
         </button>
         <button class="btn btn-outline-secondary ms-auto" (click)="volver(pedido)">
           <i class="fa-solid fa-arrow-left me-1"></i> Volver
         </button>
       </div>
+
+      <!-- Formulario de facturación -->
+      <app-factura-form
+        [visible]="mostrarFormularioFactura"
+        [pedido]="pedido$ | async"
+        [cliente]="cliente$ | async"
+        (cerrarModal)="cerrarFormularioFactura()"
+        (facturaCreada)="onFacturaCreada()">
+      </app-factura-form>
     </ng-container>
   `,
 })
 export class PedidoDetailComponent {
   mostrarModalEliminar = false;
+  mostrarFormularioFactura = false;
   pedidoId = this.route.snapshot.paramMap.get('id')!;
   pedido$: Observable<Pedido | undefined> = this.pedidosService
     .getPedidos()
@@ -263,8 +274,15 @@ export class PedidoDetailComponent {
     this.router.navigate(['/pedidos-empresa', empresaId]);
   }
 
-  facturarEnOdoo() {
-    const url = 'https://indumedin.kismasoft.com/web#action=203&model=account.move&view_type=form&cids=1&menu_id=117';
-    window.open(url, '_blank', 'noopener,noreferrer');
+  abrirFormularioFactura() {
+    this.mostrarFormularioFactura = true;
+  }
+
+  cerrarFormularioFactura() {
+    this.mostrarFormularioFactura = false;
+  }
+
+  onFacturaCreada() {
+    this.mostrarFormularioFactura = false;
   }
 }

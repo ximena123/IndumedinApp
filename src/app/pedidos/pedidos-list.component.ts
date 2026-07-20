@@ -103,7 +103,7 @@ interface PedidoListRow {
                 <input
                   type="text"
                   class="form-control"
-                  placeholder="Buscar cliente o empresa..."
+                  placeholder="Buscar por ID, cliente o empresa..."
                   [(ngModel)]="busquedaCliente"
                   (input)="onClienteSearch(busquedaCliente)"
                 />
@@ -327,7 +327,7 @@ export class PedidosListComponent {
     map(([filas, search, fechaEntrega, page]) => {
       const term = search || '';
       let filtrados = filas.filter((f) => {
-        const haystack = `${f.nombre ?? ''} ${f.responsable ?? ''}`;
+        const haystack = `${f.id ?? ''} ${f.nombre ?? ''} ${f.responsable ?? ''}`;
         const nombreCoincide = !term || matchesSearch(haystack, term);
         if (!fechaEntrega) return nombreCoincide;
         const filaFechaStr = this.toFechaStr(f.fechaEntrega);

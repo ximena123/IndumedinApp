@@ -60,6 +60,10 @@ export const routes: Routes = [
 		loadComponent: () => import('./resumen/resumen.component').then(m => m.ResumenComponent)
 	},
 	{
+		path: 'facturas',
+		loadComponent: () => import('./facturas/facturas-list.component').then(m => m.FacturasListComponent)
+	},
+	{
 		path: '**',
 		redirectTo: 'clientes'
 	}
