@@ -3,11 +3,13 @@ import { Component } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import { BehaviorSubject, Observable, combineLatest } from 'rxjs'
-import { map } from 'rxjs/operators'
+import { map, shareReplay } from 'rxjs/operators'
 import { Pedido } from '../models/pedido.model'
 import { PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosService } from '../pedidos/pedidos.service'
 import { ResumenComponent } from '../resumen/resumen.component'
+import { redondearArriba2, totalPedido } from '../shared/money.util'
+import { PaginacionComponent, paginar } from '../shared/paginacion.component'
 import { matchesSearch } from '../shared/search.util'
 import { PedidosEmpresaFiltrosService } from './pedidos-empresa-filtros.service'
 import { PedidosEmpresaService } from './pedidos-empresa.service'
@@ -25,7 +27,7 @@ interface PedidoEmpresaResumen extends PedidoEmpresa {
 @Component({
   standalone: true,
   selector: 'app-pedidos-empresa-list',
-  imports: [CommonModule, FormsModule, ResumenComponent],
+  imports: [CommonModule, FormsModule, ResumenComponent, PaginacionComponent],
   template: `
     <!-- Modal confirmar eliminación -->
     <div class="modal fade" [class.show]="mostrarModalEliminar" [style.display]="mostrarModalEliminar ? 'block' : 'none'" tabindex="-1">
@@ -199,6 +201,18 @@ interface PedidoEmpresaResumen extends PedidoEmpresa {
         </table>
       </div>
     </div>
+
+    <app-paginacion
+      etiqueta="pedido de empresa"
+      etiquetaPlural="pedidos de empresa"
+      [enTarjeta]="false"
+      [page]="page"
+      [totalPages]="totalPages"
+      [total]="totalResultados"
+      [desde]="desdeResultado"
+      [hasta]="hastaResultado"
+      (pageChange)="setPage($event)">
+    </app-paginacion>
       </div>
       <div class="col-lg-4 d-none d-lg-block">
         <app-resumen></app-resumen>
@@ -212,8 +226,16 @@ export class PedidosEmpresaListComponent {
   mostrarModalEliminar = false;
   pedidoEmpresaIdEliminar: string | null = null;
 
+  page = 1;
+  pageSize = 10;
+  totalPages = 1;
+  totalResultados = 0;
+  desdeResultado = 0;
+  hastaResultado = 0;
+
   private busqueda$ = new BehaviorSubject<string>('');
   private estadoTab$ = new BehaviorSubject<string>('todos');
+  private page$ = new BehaviorSubject<number>(1);
 
   pedidosEmpresa$: Observable<PedidoEmpresa[]> = this.pedidosEmpresaService.getPedidosEmpresa();
   pedidos$: Observable<Pedido[]> = this.pedidosService.getPedidos();
@@ -223,15 +245,16 @@ export class PedidosEmpresaListComponent {
     this.pedidos$,
     this.busqueda$,
     this.estadoTab$,
+    this.page$,
   ]).pipe(
-    map(([empresas, pedidos, busqueda, estado]) => {
+    map(([empresas, pedidos, busqueda, estado, page]) => {
       const term = busqueda || '';
 
       const empresasConResumen: PedidoEmpresaResumen[] = empresas.map((e) => {
         const pedidosEmpresa = pedidos.filter((p) => p.pedidoEmpresaId === e.id);
-        const valorTotal = pedidosEmpresa.reduce((acc, p) => acc + (p.precio || 0), 0);
-        const totalAbonado = pedidosEmpresa.reduce((acc, p) => acc + (p.abono || 0), 0);
-        const saldoPendiente = valorTotal - totalAbonado;
+        const valorTotal = redondearArriba2(pedidosEmpresa.reduce((acc, p) => acc + totalPedido(p), 0));
+        const totalAbonado = redondearArriba2(pedidosEmpresa.reduce((acc, p) => acc + (p.abono || 0), 0));
+        const saldoPendiente = redondearArriba2(valorTotal - totalAbonado);
         const esTotalGlobal = e.total != null;
         const totalMostrado = esTotalGlobal ? (e.total ?? 0) : valorTotal;
         const saldoMostrado = e.saldo != null ? e.saldo : saldoPendiente;
@@ -263,8 +286,18 @@ export class PedidosEmpresaListComponent {
         return db - da;
       });
 
-      return filtrados;
+      const resultado = paginar(filtrados, page, this.pageSize);
+      this.totalResultados = resultado.total;
+      this.totalPages = resultado.totalPages;
+      this.page = resultado.page;
+      this.desdeResultado = resultado.desde;
+      this.hastaResultado = resultado.hasta;
+      if (resultado.page !== page) this.page$.next(resultado.page);
+      return resultado.items;
     }),
+    // La plantilla se suscribe varias veces (mobile/desktop): sin esto el
+    // paginado se recalcularía en cada suscripción.
+    shareReplay({ bufferSize: 1, refCount: true }),
   );
 
   constructor(
@@ -281,12 +314,14 @@ export class PedidosEmpresaListComponent {
   }
 
   onBusqueda(value: string): void {
+    this.reiniciarPagina();
     this.busqueda$.next(value);
     this.filtrosService.set({ busqueda: value });
   }
 
   setEstadoTab(tab: string): void {
     this.estadoTab = tab;
+    this.reiniciarPagina();
     this.estadoTab$.next(tab);
     this.filtrosService.set({ estadoTab: tab });
   }
@@ -294,9 +329,22 @@ export class PedidosEmpresaListComponent {
   borrarFiltros(): void {
     this.busqueda = '';
     this.estadoTab = 'todos';
+    this.reiniciarPagina();
     this.busqueda$.next('');
     this.estadoTab$.next('todos');
     this.filtrosService.reset();
+  }
+
+  setPage(page: number): void {
+    const paginaValida = Math.min(Math.max(page, 1), this.totalPages || 1);
+    if (paginaValida === this.page) return;
+    this.page = paginaValida;
+    this.page$.next(paginaValida);
+  }
+
+  private reiniciarPagina(): void {
+    this.page = 1;
+    this.page$.next(1);
   }
 
   nuevoPedidoEmpresa(): void {

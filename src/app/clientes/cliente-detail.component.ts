@@ -1,14 +1,17 @@
 import { CommonModule } from '@angular/common'
 import { Component } from '@angular/core'
 import { ActivatedRoute, Router } from '@angular/router'
+import { BehaviorSubject, combineLatest } from 'rxjs'
+import { map, shareReplay } from 'rxjs/operators'
 import { MedidasService } from '../medidas/medidas.service'
 import { PedidosService } from '../pedidos/pedidos.service'
+import { PaginacionComponent, paginar } from '../shared/paginacion.component'
 import { ClientesService } from './clientes.service'
 
 @Component({
   standalone: true,
   selector: 'app-cliente-detail',
-  imports: [CommonModule],
+  imports: [CommonModule, PaginacionComponent],
   template: `
     <ng-container *ngIf="cliente$ | async as cliente">
       <div class="d-flex justify-content-between align-items-center mb-3">
@@ -171,6 +174,15 @@ import { ClientesService } from './clientes.service'
             </table>
           </div>
         </div>
+        <app-paginacion
+          etiqueta="pedido"
+          [page]="page"
+          [totalPages]="totalPages"
+          [total]="totalResultados"
+          [desde]="desdeResultado"
+          [hasta]="hastaResultado"
+          (pageChange)="setPage($event)">
+        </app-paginacion>
       </div>
 
       <button class="btn btn-outline-secondary mt-3" (click)="volver()">
@@ -183,7 +195,37 @@ export class ClienteDetailComponent {
   clienteId = this.route.snapshot.paramMap.get('id')!;
   cliente$ = this.clientesService.getCliente(this.clienteId);
   medidas$ = this.medidasService.getMedidasByCliente(this.clienteId);
-  pedidos$ = this.pedidosService.getPedidosByCliente(this.clienteId);
+  page = 1;
+  pageSize = 10;
+  totalPages = 1;
+  totalResultados = 0;
+  desdeResultado = 0;
+  hastaResultado = 0;
+  private page$ = new BehaviorSubject<number>(1);
+
+  pedidos$ = combineLatest([
+    this.pedidosService.getPedidosByCliente(this.clienteId),
+    this.page$,
+  ]).pipe(
+    map(([pedidos, page]) => {
+      const resultado = paginar(pedidos, page, this.pageSize);
+      this.totalResultados = resultado.total;
+      this.totalPages = resultado.totalPages;
+      this.page = resultado.page;
+      this.desdeResultado = resultado.desde;
+      this.hastaResultado = resultado.hasta;
+      if (resultado.page !== page) this.page$.next(resultado.page);
+      return resultado.items;
+    }),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+
+  setPage(page: number) {
+    const paginaValida = Math.min(Math.max(page, 1), this.totalPages || 1);
+    if (paginaValida === this.page) return;
+    this.page = paginaValida;
+    this.page$.next(paginaValida);
+  }
 
   constructor(
     private route: ActivatedRoute,

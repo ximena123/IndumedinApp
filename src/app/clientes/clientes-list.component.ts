@@ -3,18 +3,19 @@ import { Component } from '@angular/core'
 import { FormControl, ReactiveFormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import { BehaviorSubject, Observable, combineLatest, firstValueFrom } from 'rxjs'
-import { map, startWith, tap } from 'rxjs/operators'
+import { map, shareReplay, startWith, tap } from 'rxjs/operators'
 import { Cliente } from '../models/cliente.model'
 import { Pedido } from '../models/pedido.model'
 import { PedidosService } from '../pedidos/pedidos.service'
 import { ResumenComponent } from '../resumen/resumen.component'
+import { PaginacionComponent, paginar } from '../shared/paginacion.component'
 import { matchesSearch } from '../shared/search.util'
 import { ClientesService } from './clientes.service'
 
 @Component({
   standalone: true,
   selector: 'app-clientes-list',
-  imports: [CommonModule, ReactiveFormsModule, ResumenComponent],
+  imports: [CommonModule, ReactiveFormsModule, ResumenComponent, PaginacionComponent],
   template: `
     <div class="row">
       <div class="col-lg-8 col-md-12">
@@ -159,25 +160,24 @@ import { ClientesService } from './clientes.service'
           </table>
         </div>
 
-        <nav *ngIf="totalPages > 1" class="mt-3">
-          <ul class="pagination justify-content-center flex-wrap">
-            <li class="page-item" [class.disabled]="page === 1">
-              <button class="page-link" (click)="setPage(page - 1)">&laquo;</button>
-            </li>
-            <ng-container *ngFor="let p of [].constructor(totalPages); let i = index">
-              <li class="page-item" [class.active]="page === i + 1"
-                *ngIf="i + 1 === 1 || i + 1 === totalPages || (i + 1 >= page - 1 && i + 1 <= page + 1)">
-                <button class="page-link" (click)="setPage(i + 1)">{{ i + 1 }}</button>
-              </li>
-              <li class="page-item disabled" *ngIf="(i + 1 === page - 2 && page > 3) || (i + 1 === page + 2 && page < totalPages - 2)">
-                <span class="page-link">...</span>
-              </li>
-            </ng-container>
-            <li class="page-item" [class.disabled]="page === totalPages">
-              <button class="page-link" (click)="setPage(page + 1)">&raquo;</button>
-            </li>
-          </ul>
-        </nav>
+        <div class="text-center text-muted py-5" *ngIf="cargando">
+          <span class="spinner-border spinner-border-sm me-2"></span> Cargando clientes...
+        </div>
+        <div class="text-center text-muted py-4" *ngIf="!cargando && totalResultados === 0">
+          <i class="fa-regular fa-folder-open me-2"></i> No hay clientes que mostrar.
+        </div>
+
+        <app-paginacion
+          *ngIf="!cargando"
+          etiqueta="cliente"
+          [enTarjeta]="false"
+          [page]="page"
+          [totalPages]="totalPages"
+          [total]="totalResultados"
+          [desde]="desdeResultado"
+          [hasta]="hastaResultado"
+          (pageChange)="setPage($event)">
+        </app-paginacion>
       </div>
       <div class="col-lg-4 d-none d-lg-block">
         <app-resumen></app-resumen>
@@ -189,6 +189,10 @@ export class ClientesListComponent {
   page = 1
   pageSize = 10
   totalPages = 1
+  cargando = true
+  totalResultados = 0
+  desdeResultado = 0
+  hastaResultado = 0
   clientes$: Observable<Cliente[]> = this.clientesService.getClientes().pipe(
     map((clientes: any) => clientes ?? [])
   );
@@ -209,17 +213,21 @@ export class ClientesListComponent {
       const filtrados = lista.filter((c) =>
         matchesSearch(`${c.nombreCompleto ?? ''} ${c.apellidos ?? ''}`, f),
       );
-      this.totalPages = Math.max(1, Math.ceil(filtrados.length / this.pageSize));
-      const paginaValida = Math.min(Math.max(page, 1), this.totalPages);
-      if (paginaValida !== this.page) {
-        this.page = paginaValida;
+      const resultado = paginar(filtrados, page, this.pageSize);
+      this.cargando = false;
+      this.totalResultados = resultado.total;
+      this.totalPages = resultado.totalPages;
+      this.page = resultado.page;
+      this.desdeResultado = resultado.desde;
+      this.hastaResultado = resultado.hasta;
+      if (resultado.page !== page) {
+        this.page$.next(resultado.page);
       }
-      if (paginaValida !== page) {
-        this.page$.next(paginaValida);
-      }
-      const start = (paginaValida - 1) * this.pageSize;
-      return filtrados.slice(start, start + this.pageSize);
-    })
+      return resultado.items;
+    }),
+    // La plantilla se suscribe varias veces (mobile/desktop): sin esto el
+    // paginado se recalcularía en cada suscripción.
+    shareReplay({ bufferSize: 1, refCount: true }),
   );
   mostrarModalNormalizar = false;
   normalizando = false;

@@ -10,6 +10,7 @@ import { PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosEmpresaService } from '../pedidos-empresa/pedidos-empresa.service'
 import { PedidosService } from './pedidos.service'
 import { FacturaFormComponent } from '../facturas/factura-form.component'
+import { formatMoneda, totalPedido } from '../shared/money.util'
 
 @Component({
   standalone: true,
@@ -87,15 +88,24 @@ import { FacturaFormComponent } from '../facturas/factura-form.component'
             <div class="card-header bg-danger text-white"><i class="fa-solid fa-dollar-sign me-2"></i>Pago</div>
             <div class="card-body">
               <div class="d-flex justify-content-between mb-2">
-                <span>Precio:</span> <strong>\${{ pedido.precio || 0 }}</strong>
+                <span>Precio:</span> <strong>\${{ money(pedido.precio) }}</strong>
               </div>
+              <ng-container *ngIf="pedido.descuento && pedido.descuento > 0">
+                <div class="d-flex justify-content-between mb-2">
+                  <span><i class="fa-solid fa-graduation-cap me-1"></i>Desc. UTPL (6%):</span>
+                  <strong class="text-danger">-\${{ money(pedido.descuento) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span>Total a pagar:</span> <strong>\${{ money(total(pedido)) }}</strong>
+                </div>
+              </ng-container>
               <div class="d-flex justify-content-between mb-2">
-                <span>Abono:</span> <strong class="text-success">\${{ pedido.abono || 0 }}</strong>
+                <span>Abono:</span> <strong class="text-success">\${{ money(pedido.abono) }}</strong>
               </div>
               <hr class="my-2">
               <div class="d-flex justify-content-between">
                 <span class="fw-bold">Saldo:</span>
-                <strong class="fs-5" [class.text-danger]="pedido.saldo && pedido.saldo > 0">\${{ pedido.saldo || 0 }}</strong>
+                <strong class="fs-5" [class.text-danger]="pedido.saldo && pedido.saldo > 0">\${{ money(pedido.saldo) }}</strong>
               </div>
             </div>
           </div>
@@ -219,6 +229,14 @@ export class PedidoDetailComponent {
     private pedidosEmpresaService: PedidosEmpresaService,
   ) {}
 
+  money(valor: number | null | undefined): string {
+    return formatMoneda(valor);
+  }
+
+  total(pedido: Pedido): number {
+    return totalPedido(pedido);
+  }
+
   volver(pedido?: Pedido) {
     if (pedido?.pedidoEmpresaId) {
       this.router.navigate(['/pedidos-empresa', pedido.pedidoEmpresaId]);
@@ -250,10 +268,9 @@ export class PedidoDetailComponent {
   }
   marcarComoEntregado(pedido: Pedido) {
     if (pedido.estado !== 'entregado') {
-      const precio = pedido.precio ?? 0;
       this.pedidosService.updatePedido(pedido.id, {
         estado: 'entregado',
-        abono: precio,
+        abono: totalPedido(pedido),
         saldo: 0,
       });
     }

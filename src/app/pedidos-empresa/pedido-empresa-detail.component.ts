@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common'
 import { Component } from '@angular/core'
 import { ActivatedRoute, Router } from '@angular/router'
-import { Observable, combineLatest, firstValueFrom, of } from 'rxjs'
+import { BehaviorSubject, Observable, combineLatest, firstValueFrom, of } from 'rxjs'
 import { map, shareReplay, switchMap } from 'rxjs/operators'
 import { ClientesService } from '../clientes/clientes.service'
 import { Cliente } from '../models/cliente.model'
@@ -9,6 +9,8 @@ import { Pedido } from '../models/pedido.model'
 import { EstadoPedidoEmpresa, PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosService } from '../pedidos/pedidos.service'
 import { ResumenComponent } from '../resumen/resumen.component'
+import { formatMoneda, redondearArriba2, totalPedido } from '../shared/money.util'
+import { PaginacionComponent, paginar } from '../shared/paginacion.component'
 import { PedidosEmpresaService } from './pedidos-empresa.service'
 
 interface EmpleadoFila {
@@ -19,7 +21,7 @@ interface EmpleadoFila {
 @Component({
   standalone: true,
   selector: 'app-pedido-empresa-detail',
-  imports: [CommonModule, ResumenComponent],
+  imports: [CommonModule, ResumenComponent, PaginacionComponent],
   template: `
     <ng-container *ngIf="pedidoEmpresa$ | async as pe">
     <div class="row">
@@ -153,10 +155,15 @@ interface EmpleadoFila {
                 <td class="text-muted" style="font-size: 13px; max-width: 220px;">
                   {{ fila.pedido.descripcion.length > 80 ? (fila.pedido.descripcion | slice: 0 : 80) + '...' : fila.pedido.descripcion }}
                 </td>
-                <td class="text-end">\${{ fila.pedido.precio || 0 }}</td>
-                <td class="text-end">\${{ fila.pedido.abono || 0 }}</td>
+                <td class="text-end">
+                  \${{ money(total(fila.pedido)) }}
+                  <div class="small text-muted" *ngIf="fila.pedido.descuento && fila.pedido.descuento > 0">
+                    <s>\${{ money(fila.pedido.precio) }}</s> UTPL -6%
+                  </div>
+                </td>
+                <td class="text-end">\${{ money(fila.pedido.abono) }}</td>
                 <td class="text-end fw-bold" [class.text-danger]="fila.pedido.saldo && fila.pedido.saldo > 0">
-                  \${{ fila.pedido.saldo || 0 }}
+                  \${{ money(fila.pedido.saldo) }}
                 </td>
                 <td class="text-center">
                   <div class="btn-group btn-group-sm">
@@ -178,6 +185,15 @@ interface EmpleadoFila {
             </tbody>
           </table>
         </div>
+        <app-paginacion
+          etiqueta="empleado"
+          [page]="page"
+          [totalPages]="totalPages"
+          [total]="totalResultados"
+          [desde]="desdeResultado"
+          [hasta]="hastaResultado"
+          (pageChange)="setPage($event)">
+        </app-paginacion>
       </div>
 
       <div class="d-flex gap-2 mt-3">
@@ -204,7 +220,15 @@ export class PedidoEmpresaDetailComponent {
     .getPedidosByEmpresa(this.pedidoEmpresaId)
     .pipe(shareReplay({ bufferSize: 1, refCount: true }));
 
-  empleados$: Observable<EmpleadoFila[]> = this.pedidos$.pipe(
+  page = 1;
+  pageSize = 10;
+  totalPages = 1;
+  totalResultados = 0;
+  desdeResultado = 0;
+  hastaResultado = 0;
+  private page$ = new BehaviorSubject<number>(1);
+
+  private todosLosEmpleados$: Observable<EmpleadoFila[]> = this.pedidos$.pipe(
     switchMap((pedidos) => {
       if (pedidos.length === 0) return of<EmpleadoFila[]>([]);
       const filas$ = pedidos.map((pedido) =>
@@ -216,17 +240,41 @@ export class PedidoEmpresaDetailComponent {
     }),
   );
 
+  empleados$: Observable<EmpleadoFila[]> = combineLatest([
+    this.todosLosEmpleados$,
+    this.page$,
+  ]).pipe(
+    map(([empleados, page]) => {
+      const resultado = paginar(empleados, page, this.pageSize);
+      this.totalResultados = resultado.total;
+      this.totalPages = resultado.totalPages;
+      this.page = resultado.page;
+      this.desdeResultado = resultado.desde;
+      this.hastaResultado = resultado.hasta;
+      if (resultado.page !== page) this.page$.next(resultado.page);
+      return resultado.items;
+    }),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+
+  setPage(page: number): void {
+    const paginaValida = Math.min(Math.max(page, 1), this.totalPages || 1);
+    if (paginaValida === this.page) return;
+    this.page = paginaValida;
+    this.page$.next(paginaValida);
+  }
+
   resumen$ = this.pedidos$.pipe(
     map((pedidos) => {
-      const valorTotal = pedidos.reduce((acc, p) => acc + (p.precio || 0), 0);
-      const totalAbonado = pedidos.reduce((acc, p) => acc + (p.abono || 0), 0);
+      const valorTotal = redondearArriba2(pedidos.reduce((acc, p) => acc + totalPedido(p), 0));
+      const totalAbonado = redondearArriba2(pedidos.reduce((acc, p) => acc + (p.abono || 0), 0));
       const totalTernos = pedidos.reduce((acc, p) => acc + (p.cantidadTernos || 0), 0);
       return {
         numeroEmpleados: pedidos.length,
         totalTernos,
         valorTotal,
         totalAbonado,
-        saldoPendiente: valorTotal - totalAbonado,
+        saldoPendiente: redondearArriba2(valorTotal - totalAbonado),
       };
     }),
   );
@@ -267,12 +315,20 @@ export class PedidoEmpresaDetailComponent {
       pedidos.map((p) => {
         const cambios: Partial<Pedido> = { estado };
         if (estado === 'entregado') {
-          cambios.abono = p.precio ?? 0;
+          cambios.abono = totalPedido(p);
           cambios.saldo = 0;
         }
         return this.pedidosService.updatePedido(p.id, cambios);
       }),
     );
+  }
+
+  money(valor: number | null | undefined): string {
+    return formatMoneda(valor);
+  }
+
+  total(pedido: Pedido): number {
+    return totalPedido(pedido);
   }
 
   async eliminarEmpleado(pedidoId: string): Promise<void> {

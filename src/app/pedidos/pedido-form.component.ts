@@ -14,6 +14,7 @@ import { MedidasService } from '../medidas/medidas.service'
 import { Cliente } from '../models/cliente.model'
 import { PedidoEmpresa } from '../models/pedido-empresa.model'
 import { PedidosEmpresaService } from '../pedidos-empresa/pedidos-empresa.service'
+import { DESCUENTO_UTPL, calcularTotales, formatMoneda, redondearArriba2 } from '../shared/money.util'
 import { matchesSearch } from '../shared/search.util'
 import { PedidosService } from './pedidos.service'
 import { ResumenComponent } from '../resumen/resumen.component'
@@ -172,6 +173,30 @@ import { ResumenComponent } from '../resumen/resumen.component'
           />
         </div>
       </div>
+      <div class="row align-items-end mb-3">
+        <div class="col-md-4 mb-2">
+          <div class="form-check form-switch mt-2">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="estudianteUtplCheck"
+              formControlName="esEstudianteUtpl"
+            />
+            <label class="form-check-label" for="estudianteUtplCheck">
+              <i class="fa-solid fa-graduation-cap me-1"></i>
+              Estudiante UTPL ({{ porcentajeUtpl }}% de descuento)
+            </label>
+          </div>
+        </div>
+        <div class="col-md-4 mb-2" *ngIf="form.get('esEstudianteUtpl')?.value">
+          <label class="form-label">Descuento UTPL</label>
+          <input type="text" class="form-control text-danger" [value]="'-$' + formatearMoneda(descuento)" readonly />
+        </div>
+        <div class="col-md-4 mb-2">
+          <label class="form-label">Total a pagar</label>
+          <input type="text" class="form-control fw-bold" [value]="'$' + formatearMoneda(total)" readonly />
+        </div>
+      </div>
       <div class="mb-3">
         <div class="row">
           <div class="col-md-3 mb-2">
@@ -288,12 +313,16 @@ export class PedidoFormComponent implements OnInit {
   mensajeWhatsApp = '';
   telefonoWhatsApp = '';
   whatsAppUrl = '';
+  porcentajeUtpl = DESCUENTO_UTPL * 100;
+  descuento = 0;
+  total = 0;
   form = this.fb.group({
     cantidadTernos: ['', Validators.required],
     descripcion: ['', Validators.required],
     fechaEntrega: ['', Validators.required],
     estado: ['pendiente', Validators.required],
     precio: [undefined as number | null | undefined, Validators.required],
+    esEstudianteUtpl: [false],
     abono: [0 as number | null | undefined],
     saldo: [undefined as number | null | undefined],
     notas: [''],
@@ -377,6 +406,7 @@ export class PedidoFormComponent implements OnInit {
             typeof pedido.abono === 'number' ? pedido.abono : undefined,
           saldo:
             typeof pedido.saldo === 'number' ? pedido.saldo : undefined,
+          esEstudianteUtpl: pedido.esEstudianteUtpl ?? false,
           notas: pedido.notas ?? '',
           cantidadTernos:
             typeof pedido.cantidadTernos === 'number'
@@ -407,12 +437,16 @@ export class PedidoFormComponent implements OnInit {
         }
       });
     });
-    // Actualizar saldo cada vez que cambie precio o abono
+    // Recalcular descuento, total y saldo cada vez que cambie precio, abono
+    // o la condición de estudiante UTPL.
     this.form
       .get('precio')
       ?.valueChanges.subscribe(() => this.actualizarSaldo());
     this.form
       .get('abono')
+      ?.valueChanges.subscribe(() => this.actualizarSaldo());
+    this.form
+      .get('esEstudianteUtpl')
       ?.valueChanges.subscribe(() => this.actualizarSaldo());
     this.actualizarSaldo();
   }
@@ -429,12 +463,25 @@ export class PedidoFormComponent implements OnInit {
     return '';
   }
 
+  /**
+   * Recalcula el descuento UTPL, el total a pagar y el saldo.
+   * El saldo se redondea a 2 decimales hacia el inmediato superior.
+   */
   actualizarSaldo() {
-    const precio = Number(this.form.get('precio')?.value ?? 0);
     const abono = Number(this.form.get('abono')?.value ?? 0);
+    const { descuento, total } = calcularTotales(
+      this.form.get('precio')?.value,
+      !!this.form.get('esEstudianteUtpl')?.value,
+    );
+    this.descuento = descuento;
+    this.total = total;
     this.form
       .get('saldo')
-      ?.setValue((precio - abono) as any, { emitEvent: false });
+      ?.setValue(redondearArriba2(total - abono) as any, { emitEvent: false });
+  }
+
+  formatearMoneda(valor: number | null | undefined): string {
+    return formatMoneda(valor);
   }
 
   cancelar() {
@@ -492,7 +539,10 @@ export class PedidoFormComponent implements OnInit {
     this.router.navigate(['/clientes/nuevo'], { queryParams });
   }
 
-  prepararWhatsApp(pedido: Partial<import('../models/pedido.model').Pedido>) {
+  prepararWhatsApp(
+    pedido: Partial<import('../models/pedido.model').Pedido>,
+    numeroOrden = '',
+  ) {
     if (!this.clienteSeleccionado?.telefono) {
       this.router.navigate(['/pedidos']);
       return;
@@ -509,12 +559,23 @@ export class PedidoFormComponent implements OnInit {
       `Hola ${cliente}, su pedido ha sido registrado en *Indumedin*.`,
       '',
       `*Detalles del pedido:*`,
+      numeroOrden ? `- N° de orden: ${numeroOrden}` : '',
       pedido.descripcion ? `- Descripción: ${pedido.descripcion}` : '',
       pedido.cantidadTernos ? `- Cantidad de ternos: ${pedido.cantidadTernos}` : '',
       pedido.fechaEntrega ? `- Fecha de entrega: ${pedido.fechaEntrega}` : '',
-      pedido.precio != null ? `- Precio: $${pedido.precio}` : '',
-      pedido.abono != null ? `- Abono: $${pedido.abono}` : '',
-      pedido.saldo != null ? `- Saldo pendiente: $${pedido.saldo}` : '',
+      pedido.precio != null ? `- Precio: $${formatMoneda(pedido.precio)}` : '',
+      pedido.descuento != null && pedido.descuento > 0
+        ? `- Descuento estudiante UTPL (${this.porcentajeUtpl}%): -$${formatMoneda(pedido.descuento)}`
+        : '',
+      pedido.descuento != null && pedido.descuento > 0 && pedido.total != null
+        ? `- Total a pagar: $${formatMoneda(pedido.total)}`
+        : '',
+      pedido.abono != null ? `- Abono: $${formatMoneda(pedido.abono)}` : '',
+      pedido.saldo != null ? `- Saldo pendiente: $${formatMoneda(pedido.saldo)}` : '',
+      '',
+      pedido.abono != null && pedido.abono > 0
+        ? '*Nota:* El abono no es reembolsable. Si en algún momento decide no continuar con este pedido, su valor queda registrado a su favor y podrá usarlo en la confección de otra prenda cuando usted lo desee.'
+        : '',
       '',
       'Gracias por su preferencia.',
     ];
@@ -563,11 +624,15 @@ export class PedidoFormComponent implements OnInit {
     if (this.form.valid && this.clienteSeleccionado && !this.guardando) {
       this.guardando = true;
       const formValue = this.form.value;
+      const tienePrecio = formValue.precio != null && (formValue.precio as unknown) !== '';
       const pedido: Partial<import('../models/pedido.model').Pedido> = {
         clienteId: this.clienteSeleccionado!.id,
         descripcion: formValue.descripcion ?? '',
         estado: formValue.estado as 'pendiente' | 'en_proceso' | 'terminado' | 'entregado' | undefined,
-        precio: formValue.precio ?? undefined,
+        precio: tienePrecio ? redondearArriba2(formValue.precio) : undefined,
+        esEstudianteUtpl: !!formValue.esEstudianteUtpl,
+        descuento: tienePrecio ? this.descuento : undefined,
+        total: tienePrecio ? this.total : undefined,
         abono: formValue.abono ?? undefined,
         saldo: formValue.saldo ?? undefined,
         notas: formValue.notas ?? '',
@@ -583,17 +648,23 @@ export class PedidoFormComponent implements OnInit {
         pedido.pedidoEmpresaId = this.empresaContexto.id;
       }
       const finalizar = () => { this.guardando = false; };
-      const afterSave = () => {
+      const afterSave = (numeroOrden = '') => {
         if (this.empresaContexto) {
           this.router.navigate(['/pedidos-empresa', this.empresaContexto.id]);
         } else {
-          this.prepararWhatsApp(pedido);
+          this.prepararWhatsApp(pedido, numeroOrden);
         }
       };
       if (this.pedidoId) {
-        this.pedidosService.updatePedido(this.pedidoId, pedido).then(afterSave).finally(finalizar);
+        this.pedidosService
+          .updatePedido(this.pedidoId, pedido)
+          .then(() => afterSave(this.pedidoId ?? ''))
+          .finally(finalizar);
       } else {
-        this.pedidosService.addPedido(pedido).then(afterSave).finally(finalizar);
+        this.pedidosService
+          .addPedido(pedido)
+          .then((ref) => afterSave(ref?.id ?? ''))
+          .finally(finalizar);
       }
     }
   }

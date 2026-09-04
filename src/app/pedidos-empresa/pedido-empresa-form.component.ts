@@ -315,6 +315,10 @@ export class PedidoEmpresaFormComponent implements OnInit {
       totalAbonado > 0 ? `- Total abonado: $${totalAbonado}` : '',
       saldoPendiente > 0 ? `- Saldo pendiente: $${saldoPendiente}` : '',
       '',
+      totalAbonado > 0
+        ? '*Nota:* El abono no es reembolsable. Si en algún momento deciden no continuar con este pedido, su valor queda registrado a favor de la empresa y podrán usarlo en la confección de otras prendas cuando lo deseen.'
+        : '',
+      '',
       'Gracias por su preferencia.',
     ];
     this.mensajeWhatsApp = lineas.filter((l) => l !== '').join('\n');

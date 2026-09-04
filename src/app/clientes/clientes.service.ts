@@ -1,20 +1,22 @@
-import { Injectable, inject } from '@angular/core'
+import { Injectable, NgZone, inject } from '@angular/core'
 import { Firestore, collection, collectionData, deleteDoc, doc, docData, updateDoc } from '@angular/fire/firestore'
 import { Observable } from 'rxjs'
 import { Cliente } from '../models/cliente.model'
 import { stripUndefined } from '../shared/firestore.util'
+import { runInZone } from '../shared/run-in-zone.operator'
 
 @Injectable({ providedIn: 'root' })
 export class ClientesService {
   private firestore = inject(Firestore);
+  private zone = inject(NgZone);
   private clientesRef = collection(this.firestore, 'clientes');
 
   getClientes(): Observable<Cliente[]> {
-    return collectionData(this.clientesRef, { idField: 'id' }) as Observable<Cliente[]>;
+    return (collectionData(this.clientesRef, { idField: 'id' }) as Observable<Cliente[]>).pipe(runInZone(this.zone));
   }
 
   getCliente(id: string): Observable<Cliente> {
-    return docData(doc(this.firestore, `clientes/${id}`), { idField: 'id' }) as Observable<Cliente>;
+    return (docData(doc(this.firestore, `clientes/${id}`), { idField: 'id' }) as Observable<Cliente>).pipe(runInZone(this.zone));
   }
 
   addCliente(cliente: any): Promise<any> {

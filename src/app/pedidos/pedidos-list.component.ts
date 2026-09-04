@@ -3,11 +3,13 @@ import { Component } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import { BehaviorSubject, Observable, combineLatest, firstValueFrom } from 'rxjs'
-import { map } from 'rxjs/operators'
+import { map, shareReplay } from 'rxjs/operators'
 import { ClientesService } from '../clientes/clientes.service'
 import { Pedido } from '../models/pedido.model'
 import { PedidosEmpresaService } from '../pedidos-empresa/pedidos-empresa.service'
 import { ResumenComponent } from '../resumen/resumen.component'
+import { formatMoneda, redondearArriba2, totalPedido } from '../shared/money.util'
+import { PaginacionComponent, paginar } from '../shared/paginacion.component'
 import { matchesSearch } from '../shared/search.util'
 import { PedidosFiltrosService } from './pedidos-filtros.service'
 import { PedidosService } from './pedidos.service'
@@ -21,7 +23,11 @@ interface PedidoListRow {
   fechaEntrega: unknown;
   estado: string;
   descripcion: string;
+  /** Precio base, sin descuento. */
   precio: number;
+  /** Total a pagar (precio - descuento UTPL). */
+  total: number;
+  descuento: number;
   abono: number;
   saldo: number;
 }
@@ -29,7 +35,7 @@ interface PedidoListRow {
 @Component({
   standalone: true,
   selector: 'app-pedidos-list',
-  imports: [CommonModule, FormsModule, ResumenComponent],
+  imports: [CommonModule, FormsModule, ResumenComponent, PaginacionComponent],
   template: `
     <style>
       @media (max-width: 600px) {
@@ -150,8 +156,9 @@ interface PedidoListRow {
                 </div>
                 <div class="text-muted small mb-2">
                   <i class="fa-regular fa-calendar me-1"></i> {{ getFechaEntrega(fila.fechaEntrega) }}
-                  <span class="ms-3"><strong>\${{ fila.precio }}</strong></span>
-                  <span class="ms-2 text-danger" *ngIf="fila.saldo > 0">(Saldo: \${{ fila.saldo }})</span>
+                  <span class="ms-3"><strong>\${{ money(fila.total) }}</strong></span>
+                  <span class="badge bg-info text-dark ms-1" *ngIf="fila.descuento > 0" title="Descuento estudiante UTPL">UTPL -6%</span>
+                  <span class="ms-2 text-danger" *ngIf="fila.saldo > 0">(Saldo: \${{ money(fila.saldo) }})</span>
                 </div>
                 <div class="d-flex gap-2">
                   <button class="btn btn-warning btn-sm flex-fill" (click)="verDetalle(fila)">
@@ -207,9 +214,14 @@ interface PedidoListRow {
                   <td class="text-muted" style="font-size: 13px; max-width: 220px;">
                     {{ fila.descripcion.length > 80 ? (fila.descripcion | slice: 0 : 80) + '...' : fila.descripcion }}
                   </td>
-                  <td class="text-end">\${{ fila.precio }}</td>
-                  <td class="text-end">\${{ fila.abono }}</td>
-                  <td class="text-end fw-bold" [class.text-danger]="fila.saldo > 0">\${{ fila.saldo }}</td>
+                  <td class="text-end">
+                    \${{ money(fila.total) }}
+                    <div class="small text-muted" *ngIf="fila.descuento > 0">
+                      <s>\${{ money(fila.precio) }}</s> UTPL -6%
+                    </div>
+                  </td>
+                  <td class="text-end">\${{ money(fila.abono) }}</td>
+                  <td class="text-end fw-bold" [class.text-danger]="fila.saldo > 0">\${{ money(fila.saldo) }}</td>
                   <td class="text-center">
                     <div class="btn-group btn-group-sm">
                       <button class="btn btn-outline-secondary" (click)="verDetalle(fila)" title="Ver detalle">
@@ -235,25 +247,23 @@ interface PedidoListRow {
           </div>
           </div>
         </div>
-        <nav *ngIf="totalPages > 1">
-          <ul class="pagination justify-content-center flex-wrap">
-            <li class="page-item" [class.disabled]="page === 1">
-              <button class="page-link" (click)="setPage(page - 1)">&laquo;</button>
-            </li>
-            <ng-container *ngFor="let p of [].constructor(totalPages); let i = index">
-              <li class="page-item" [class.active]="page === i + 1"
-                *ngIf="i + 1 === 1 || i + 1 === totalPages || (i + 1 >= page - 1 && i + 1 <= page + 1)">
-                <button class="page-link" (click)="setPage(i + 1)">{{ i + 1 }}</button>
-              </li>
-              <li class="page-item disabled" *ngIf="(i + 1 === page - 2 && page > 3) || (i + 1 === page + 2 && page < totalPages - 2)">
-                <span class="page-link">...</span>
-              </li>
-            </ng-container>
-            <li class="page-item" [class.disabled]="page === totalPages">
-              <button class="page-link" (click)="setPage(page + 1)">&raquo;</button>
-            </li>
-          </ul>
-        </nav>
+        <div *ngIf="cargando" class="text-center text-muted py-5">
+          <span class="spinner-border spinner-border-sm me-2"></span> Cargando pedidos...
+        </div>
+        <div *ngIf="!cargando && totalResultados === 0" class="text-center text-muted py-5">
+          <i class="fa-regular fa-folder-open me-2"></i> No hay pedidos que mostrar.
+        </div>
+        <app-paginacion
+          *ngIf="!cargando"
+          etiqueta="pedido"
+          [enTarjeta]="false"
+          [page]="page"
+          [totalPages]="totalPages"
+          [total]="totalResultados"
+          [desde]="desdeResultado"
+          [hasta]="hastaResultado"
+          (pageChange)="setPage($event)">
+        </app-paginacion>
       </div>
       <div class="col-lg-4 d-none d-lg-block">
         <app-resumen></app-resumen>
@@ -267,6 +277,10 @@ export class PedidosListComponent {
   page = 1;
   pageSize = 10;
   totalPages = 1;
+  cargando = true;
+  totalResultados = 0;
+  desdeResultado = 0;
+  hastaResultado = 0;
   mostrarModalEliminar = false;
   filaEliminar: PedidoListRow | null = null;
   estadoTab = 'todos';
@@ -291,14 +305,16 @@ export class PedidosListComponent {
           estado: p.estado,
           descripcion: p.descripcion ?? '',
           precio: p.precio ?? 0,
+          total: totalPedido(p),
+          descuento: p.descuento ?? 0,
           abono: p.abono ?? 0,
-          saldo: p.saldo ?? 0,
+          saldo: p.saldo ?? redondearArriba2(totalPedido(p) - (p.abono ?? 0)),
         }));
 
       const empresaFilas: PedidoListRow[] = empresas.map((e) => {
         const hijos = pedidos.filter((p) => p.pedidoEmpresaId === e.id);
-        const precio = hijos.reduce((acc, p) => acc + (p.precio ?? 0), 0);
-        const abono = hijos.reduce((acc, p) => acc + (p.abono ?? 0), 0);
+        const precio = redondearArriba2(hijos.reduce((acc, p) => acc + totalPedido(p), 0));
+        const abono = redondearArriba2(hijos.reduce((acc, p) => acc + (p.abono ?? 0), 0));
         return {
           id: e.id,
           tipo: 'empresa' as const,
@@ -309,8 +325,10 @@ export class PedidosListComponent {
           estado: e.estado,
           descripcion: e.descripcion ?? '',
           precio,
+          total: precio,
+          descuento: 0,
           abono,
-          saldo: precio - abono,
+          saldo: redondearArriba2(precio - abono),
         };
       });
 
@@ -344,14 +362,19 @@ export class PedidosListComponent {
         return db - da;
       });
 
-      this.totalPages = Math.max(1, Math.ceil(filtrados.length / this.pageSize));
-      const paginaValida = Math.min(Math.max(page, 1), this.totalPages);
-      if (paginaValida !== this.page) this.page = paginaValida;
-      if (paginaValida !== page) this.page$.next(paginaValida);
-
-      const start = (paginaValida - 1) * this.pageSize;
-      return filtrados.slice(start, start + this.pageSize);
+      const resultado = paginar(filtrados, page, this.pageSize);
+      this.cargando = false;
+      this.totalResultados = resultado.total;
+      this.totalPages = resultado.totalPages;
+      this.page = resultado.page;
+      this.desdeResultado = resultado.desde;
+      this.hastaResultado = resultado.hasta;
+      if (resultado.page !== page) this.page$.next(resultado.page);
+      return resultado.items;
     }),
+    // La plantilla se suscribe varias veces (mobile/desktop): sin esto el
+    // paginado se recalcularía en cada suscripción.
+    shareReplay({ bufferSize: 1, refCount: true }),
   );
 
   constructor(
@@ -428,6 +451,10 @@ export class PedidosListComponent {
     return this.clientesMap[id] || id;
   }
 
+  money(valor: number | null | undefined): string {
+    return formatMoneda(valor);
+  }
+
   setEstadoTab(tab: string) {
     this.estadoTab = tab;
     this.filtrosService.set({ estadoTab: tab, page: 1 });
@@ -479,16 +506,15 @@ export class PedidosListComponent {
         hijos.map((p) =>
           this.pedidosService.updatePedido(p.id, {
             estado: 'entregado',
-            abono: p.precio ?? 0,
+            abono: totalPedido(p),
             saldo: 0,
           }),
         ),
       );
     } else {
-      const precio = fila.precio ?? 0;
       await this.pedidosService.updatePedido(fila.id, {
         estado: 'entregado',
-        abono: precio,
+        abono: fila.total ?? 0,
         saldo: 0,
       });
     }

@@ -11,9 +11,14 @@ export interface DatosCliente {
 
 export interface Factura {
   id: string;
-  pedidoId: string;
-  clienteId: string;
-  datosCliente: DatosCliente;
+  /** Vacío en las facturas creadas sin un pedido registrado. */
+  pedidoId?: string;
+  /** Vacío cuando la factura no está asociada a un cliente registrado. */
+  clienteId?: string;
+  /** `true` en las facturas creadas manualmente, sin pedido asociado. */
+  sinPedido?: boolean;
+  // Opcional: hay documentos antiguos/incompletos sin este objeto.
+  datosCliente?: DatosCliente;
   detallePedido: string;
   valorTotal: number;
   fechaCreacion: Date;
